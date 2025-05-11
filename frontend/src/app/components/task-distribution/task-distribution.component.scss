@@ -1,0 +1,88 @@
+.card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.card-header {
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #eaeaea;
+  padding: 12px 16px;
+}
+
+.table {
+  margin-bottom: 0;
+}
+
+.table th {
+  font-weight: 600;
+  color: #495057;
+}
+
+.suggestion-box {
+  background-color: #f8f9ff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+/* Team Member Cards */
+.team-member-card {
+  transition: transform 0.2s;
+  border-radius: 8px;
+}
+
+.team-member-card:hover {
+  transform: translateY(-5px);
+}
+
+/* Workload Indicators */
+.workload-indicator {
+  position: relative;
+  height: 24px;
+  border-radius: 12px;
+  background-color: #f0f0f0;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.workload-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  z-index: 1;
+}
+
+.workload-label {
+  position: relative;
+  z-index: 2;
+  display: block;
+  text-align: center;
+  line-height: 24px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.low-workload .workload-bar {
+  background-color: #28a745;
+}
+
+.medium-workload .workload-bar {
+  background-color: #ffc107;
+}
+
+.high-workload .workload-bar {
+  background-color: #dc3545;
+}
+
+/* Modal customization */
+.modal-backdrop {
+  opacity: 0.5;
+}
+
+.modal-content {
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+} 

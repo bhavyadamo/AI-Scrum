@@ -1,0 +1,158 @@
+<div class="container-fluid p-4">
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="d-flex justify-content-between align-items-center">
+        <h2 class="mb-0">Task Distribution</h2>
+        <button class="btn btn-primary" (click)="autoAssignTasks()" [disabled]="loading.autoAssign">
+          <i class="bi bi-magic"></i> 
+          <span *ngIf="!loading.autoAssign">Auto-Assign Tasks</span>
+          <span *ngIf="loading.autoAssign">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            Assigning...
+          </span>
+        </button>
+      </div>
+      <p class="text-muted mt-2">Manage and assign tasks for the current sprint</p>
+      <div *ngIf="error.autoAssign" class="alert alert-danger">{{ error.autoAssign }}</div>
+    </div>
+  </div>
+
+  <!-- Tasks Table -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div *ngIf="loading.tasks" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading tasks...</span>
+            </div>
+          </div>
+
+          <div *ngIf="error.tasks" class="alert alert-danger">{{ error.tasks }}</div>
+
+          <div *ngIf="!loading.tasks && !error.tasks && tasks.length === 0" class="text-center py-4">
+            <p class="text-muted">No tasks found for the current sprint.</p>
+          </div>
+
+          <div *ngIf="!loading.tasks && !error.tasks && tasks.length > 0" class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Priority</th>
+                  <th>Assigned To</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let task of tasks">
+                  <td>{{ task.id }}</td>
+                  <td>{{ task.title }}</td>
+                  <td>
+                    <span class="badge rounded-pill" [ngClass]="getPriorityClass(task.priority)">
+                      {{ task.priority }}
+                    </span>
+                  </td>
+                  <td>
+                    <span *ngIf="task.assignedTo">{{ task.assignedTo }}</span>
+                    <span *ngIf="!task.assignedTo" class="text-muted">Unassigned</span>
+                    <div *ngIf="task.autoAssignSuggestion" class="mt-1 suggestion-box">
+                      <small class="text-primary">
+                        <i class="bi bi-lightbulb-fill"></i> 
+                        Suggest: {{ task.autoAssignSuggestion }}
+                      </small>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="badge rounded-pill" [ngClass]="getStatusClass(task.status)">
+                      {{ task.status }}
+                    </span>
+                  </td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" (click)="openAssignModal(task.id)">
+                      <i class="bi bi-person-plus"></i> Assign
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Team Workload Overview -->
+  <div class="row mt-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h4 class="mb-0">Team Workload</h4>
+        </div>
+        <div class="card-body">
+          <div *ngIf="loading.members" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading team members...</span>
+            </div>
+          </div>
+
+          <div *ngIf="error.members" class="alert alert-danger">{{ error.members }}</div>
+
+          <div *ngIf="!loading.members && !error.members && teamMembers.length === 0" class="text-center py-4">
+            <p class="text-muted">No team members found.</p>
+          </div>
+
+          <div *ngIf="!loading.members && !error.members && teamMembers.length > 0" class="row">
+            <div *ngFor="let member of teamMembers" class="col-md-3 col-sm-6 mb-3">
+              <div class="card team-member-card h-100">
+                <div class="card-body text-center">
+                  <h5 class="card-title">{{ member.displayName }}</h5>
+                  <div class="workload-indicator mt-2" [ngClass]="getTeamMemberWorkloadClass(member.currentWorkload)">
+                    <span class="workload-label">Tasks: {{ member.currentWorkload }}</span>
+                    <div class="workload-bar" [style.width.%]="(member.currentWorkload / 10) * 100"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Assign Task Modal -->
+  <div class="modal" [class.show]="selectedTask !== null" [style.display]="selectedTask !== null ? 'block' : 'none'" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Assign Task</h5>
+          <button type="button" class="btn-close" (click)="cancelAssign()"></button>
+        </div>
+        <div class="modal-body">
+          <div *ngIf="error.assign" class="alert alert-danger">{{ error.assign }}</div>
+          
+          <div class="mb-3">
+            <label for="teamMemberSelect" class="form-label">Select Team Member</label>
+            <select class="form-select" id="teamMemberSelect" [(ngModel)]="selectedMember">
+              <option value="">-- Select Team Member --</option>
+              <option *ngFor="let member of teamMembers" [value]="member.id">{{ member.displayName }} (Tasks: {{ member.currentWorkload }})</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cancelAssign()">Cancel</button>
+          <button type="button" class="btn btn-primary" (click)="assignTask()" [disabled]="loading.assign">
+            <span *ngIf="!loading.assign">Assign</span>
+            <span *ngIf="loading.assign">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Assigning...
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-backdrop fade show" *ngIf="selectedTask !== null"></div>
+</div> 

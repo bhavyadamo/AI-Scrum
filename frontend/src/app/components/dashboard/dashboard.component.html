@@ -1,0 +1,181 @@
+<div class="dashboard-container">
+  <div class="row mb-4">
+    <div class="col-md-8">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Sprint Overview</h4>
+          <button class="btn btn-outline-primary btn-sm" (click)="reload()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+          </button>
+        </div>
+        <div class="card-body">
+          <div *ngIf="loading.sprint" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          
+          <div *ngIf="error.sprint" class="alert alert-danger">
+            {{ error.sprint }}
+          </div>
+          
+          <div *ngIf="!loading.sprint && !error.sprint && sprintOverview">
+            <h2 class="sprint-title">{{ sprintOverview.sprintName }}</h2>
+            <div class="d-flex justify-content-between mt-3">
+              <div>
+                <p class="text-muted mb-1">Start Date</p>
+                <p class="fw-bold">{{ sprintOverview.startDate | date:'mediumDate' }}</p>
+              </div>
+              <div>
+                <p class="text-muted mb-1">End Date</p>
+                <p class="fw-bold">{{ sprintOverview.endDate | date:'mediumDate' }}</p>
+              </div>
+              <div>
+                <p class="text-muted mb-1">Days Remaining</p>
+                <p class="fw-bold days-remaining">{{ sprintOverview.daysRemaining }}</p>
+              </div>
+            </div>
+            
+            <!-- Progress Bar -->
+            <div *ngIf="sprintSummary" class="mt-4">
+              <div class="d-flex justify-content-between mb-1">
+                <span>Sprint Progress</span>
+                <span>{{ sprintSummary.completionPercentage | number:'1.0-0' }}%</span>
+              </div>
+              <div class="progress" style="height: 10px;">
+                <div class="progress-bar bg-success" 
+                     [style.width.%]="sprintSummary.completionPercentage"
+                     role="progressbar" 
+                     [attr.aria-valuenow]="sprintSummary.completionPercentage" 
+                     aria-valuemin="0" 
+                     aria-valuemax="100"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="col-md-4">
+      <div class="card">
+        <div class="card-header">
+          <h4 class="mb-0">Daily AI Tip</h4>
+        </div>
+        <div class="card-body">
+          <div *ngIf="loading.tip" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          
+          <div *ngIf="error.tip" class="alert alert-danger">
+            {{ error.tip }}
+          </div>
+          
+          <div *ngIf="!loading.tip && !error.tip && dailyTip" class="daily-tip">
+            <i class="bi bi-lightbulb text-warning"></i>
+            <p class="mt-2">{{ dailyTip }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Cards Row -->
+  <div class="row mb-4">
+    <div *ngIf="loading.summary" class="text-center py-4">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+    
+    <div *ngIf="error.summary" class="alert alert-danger">
+      {{ error.summary }}
+    </div>
+    
+    <div *ngIf="!loading.summary && !error.summary && sprintSummary">
+      <div class="col-md-3">
+        <div class="card summary-card total-card">
+          <div class="card-body">
+            <h5 class="card-title">Total Tasks</h5>
+            <h2 class="card-value">{{ sprintSummary.totalTasks }}</h2>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card summary-card in-progress-card">
+          <div class="card-body">
+            <h5 class="card-title">In Progress</h5>
+            <h2 class="card-value">{{ sprintSummary.inProgress }}</h2>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card summary-card completed-card">
+          <div class="card-body">
+            <h5 class="card-title">Completed</h5>
+            <h2 class="card-value">{{ sprintSummary.completed }}</h2>
+          </div>
+        </div>
+      </div>
+      
+      <div class="col-md-3">
+        <div class="card summary-card blocked-card">
+          <div class="card-body">
+            <h5 class="card-title">Blocked</h5>
+            <h2 class="card-value">{{ sprintSummary.blocked }}</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity Feed -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">
+          <h4 class="mb-0">Latest Activity</h4>
+        </div>
+        <div class="card-body">
+          <div *ngIf="loading.activity" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+          
+          <div *ngIf="error.activity" class="alert alert-danger">
+            {{ error.activity }}
+          </div>
+          
+          <div *ngIf="!loading.activity && !error.activity && activityFeed && activityFeed.activities.length > 0">
+            <ul class="list-group activity-list">
+              <li *ngFor="let item of activityFeed.activities" class="list-group-item">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <span class="badge" [ngClass]="'bg-' + (item.type === 'Created' ? 'success' : 
+                                                            item.type === 'Updated' ? 'info' : 
+                                                            item.type === 'Commented' ? 'warning' : 'primary')">
+                      {{ item.type }}
+                    </span>
+                    <span class="ms-2 activity-title">{{ item.title }}</span>
+                  </div>
+                  <div class="activity-meta">
+                    <small class="text-muted">{{ item.user }} · {{ item.timestamp | date:'short' }}</small>
+                  </div>
+                </div>
+                <p *ngIf="item.details" class="mt-1 mb-0 activity-details">{{ item.details }}</p>
+              </li>
+            </ul>
+          </div>
+          
+          <div *ngIf="!loading.activity && !error.activity && (!activityFeed || activityFeed.activities.length === 0)" class="text-center py-3">
+            <p class="text-muted">No recent activity found</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

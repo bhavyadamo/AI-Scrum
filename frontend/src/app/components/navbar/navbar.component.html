@@ -1,0 +1,42 @@
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" routerLink="/">
+      <i class="bi bi-robot me-2"></i>AI Scrum Master
+    </a>
+    <button class="navbar-toggler" type="button" (click)="toggleMenu()" 
+            aria-controls="navbarNav" [attr.aria-expanded]="!isMenuCollapsed" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" [class.show]="!isMenuCollapsed" id="navbarNav">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/dashboard" routerLinkActive="active" (click)="isMenuCollapsed = true">
+            <i class="bi bi-house-door me-1"></i>Dashboard
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/tasks" routerLinkActive="active" (click)="isMenuCollapsed = true">
+            <i class="bi bi-card-checklist me-1"></i>Task Distribution
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/recommendations" routerLinkActive="active" (click)="isMenuCollapsed = true">
+            <i class="bi bi-lightbulb me-1"></i>Recommendations
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/estimation" routerLinkActive="active" (click)="isMenuCollapsed = true">
+            <i class="bi bi-clock-history me-1"></i>Task Estimation
+          </a>
+        </li>
+      </ul>
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" routerLink="/settings" routerLinkActive="active" (click)="isMenuCollapsed = true">
+            <i class="bi bi-gear me-1"></i>Settings
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav> 
