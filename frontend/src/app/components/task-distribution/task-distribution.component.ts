@@ -128,9 +128,24 @@ export class TaskDistributionComponent implements OnInit {
 
     // Use the taskService directly to get team members by iteration path
     this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
-      next: (members) => {
-        this.teamMembers = members;
-        console.log('Loaded team members:', members);
+      next: (response) => {
+        // Check if response is an array of strings (names) or TeamMember objects
+        if (response.length > 0 && typeof response[0] === 'string') {
+          // It's an array of strings, convert to TeamMember objects
+          const names = response as string[];
+          this.teamMembers = names.map((name, index) => ({
+            id: `member-${index}`,
+            displayName: name,
+            uniqueName: '',
+            currentWorkload: 0,
+            isActive: true,
+            email: ''
+          }));
+        } else {
+          // It's already an array of TeamMember objects
+          this.teamMembers = response as TeamMember[];
+        }
+        console.log('Loaded team members:', this.teamMembers);
         this.loading.members = false;
         
         // If tasks are already loaded, update workload
@@ -246,6 +261,7 @@ export class TaskDistributionComponent implements OnInit {
     this.loading.assign = true;
     this.error.assign = null;
     
+    // Use the selected member name directly for the API call
     console.log(`Assigning task ${this.selectedTask} to member ${this.selectedMember}`);
     
     this.taskService.assignTask(this.selectedTask, this.selectedMember).subscribe({
@@ -306,9 +322,42 @@ export class TaskDistributionComponent implements OnInit {
     this.selectedMember = '';
     this.error.assign = null;
 
-    // Ensure we have team members loaded before showing the modal
-    if (this.filteredTeamMembers.length === 0 && !this.loading.members) {
-      this.loadTeamMembers();
+    // Get the iteration path for this specific task
+    const task = this.tasks.find(t => t.id === taskId);
+    if (task && task.iterationPath) {
+      // Fetch team members specifically for this task's iteration path
+      this.loading.members = true;
+      this.taskService.getTeamMembers(task.iterationPath).subscribe({
+        next: (response) => {
+          // Check if response is an array of strings (names) or TeamMember objects
+          if (response.length > 0 && typeof response[0] === 'string') {
+            // It's an array of strings, convert to TeamMember objects
+            const names = response as string[];
+            this.filteredTeamMembers = names.map((name, index) => ({
+              id: `member-${index}`,
+              displayName: name,
+              uniqueName: '',
+              currentWorkload: 0,
+              isActive: true,
+              email: ''
+            }));
+          } else {
+            // It's already an array of TeamMember objects
+            this.filteredTeamMembers = response as TeamMember[];
+          }
+          this.loading.members = false;
+        },
+        error: (err) => {
+          console.error(`Error loading team members for iteration path ${task.iterationPath}:`, err);
+          this.error.members = `Failed to load team members: ${err.message}`;
+          this.loading.members = false;
+        }
+      });
+    } else {
+      // Ensure we have team members loaded before showing the modal
+      if (this.filteredTeamMembers.length === 0 && !this.loading.members) {
+        this.loadTeamMembers();
+      }
     }
   }
 

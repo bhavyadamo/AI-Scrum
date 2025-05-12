@@ -70,9 +70,9 @@ export class TaskService {
   /**
    * Get team members from the API
    * @param iterationPath Optional iteration path to filter team members
-   * @returns Observable of TeamMember array
+   * @returns Observable of TeamMember array or string array depending on the iterationPath
    */
-  getTeamMembers(iterationPath?: string): Observable<TeamMember[]> {
+  getTeamMembers(iterationPath?: string): Observable<TeamMember[] | string[]> {
     let params = new HttpParams();
     
     if (iterationPath) {
@@ -81,7 +81,7 @@ export class TaskService {
       params = params.set('iterationPath', encodedIterationPath);
     }
     
-    return this.http.get<TeamMember[]>(`${this.apiUrl}/team-members`, { params })
+    return this.http.get<TeamMember[] | string[]>(`${this.apiUrl}/team-members`, { params })
       .pipe(
         retry(1),
         catchError(error => this.handleError(error, 'fetching team members'))
