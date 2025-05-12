@@ -180,7 +180,8 @@ namespace AI_Scrum.Services
                         DisplayName = member.Identity.DisplayName,
                         Email = member.Identity.UniqueName,
                         CurrentWorkload = 0, // Set default workload - this would be calculated from active tasks
-                        IsActive = true // Assume all team members are active
+                        IsActive = true, // Assume all team members are active
+                        UniqueName = member.Identity.UniqueName
                     });
                 }
 
@@ -198,10 +199,69 @@ namespace AI_Scrum.Services
             // Return demo data for development/when Azure DevOps is not configured
             return new List<AI_Scrum.Models.TeamMember>
             {
-                new AI_Scrum.Models.TeamMember { Id = "user1", DisplayName = "John Doe", Email = "john@example.com", CurrentWorkload = 3, IsActive = true },
-                new AI_Scrum.Models.TeamMember { Id = "user2", DisplayName = "Jane Smith", Email = "jane@example.com", CurrentWorkload = 5, IsActive = true },
-                new AI_Scrum.Models.TeamMember { Id = "user3", DisplayName = "Sam Wilson", Email = "sam@example.com", CurrentWorkload = 2, IsActive = true },
-                new AI_Scrum.Models.TeamMember { Id = "user4", DisplayName = "Alex Johnson", Email = "alex@example.com", CurrentWorkload = 4, IsActive = true }
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user1", 
+                    DisplayName = "Ranjith Kumar S", 
+                    Email = "ranjithkumar.s@inatech.onmicrosoft.com", 
+                    CurrentWorkload = 0, 
+                    IsActive = true,
+                    UniqueName = "ranjithkumar.s"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user2", 
+                    DisplayName = "Bhavya Damodharan", 
+                    Email = "bhavya.d@example.com", 
+                    CurrentWorkload = 1, 
+                    IsActive = true,
+                    UniqueName = "bhavya.d"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user3", 
+                    DisplayName = "Suresh GM", 
+                    Email = "suresh.gm@example.com", 
+                    CurrentWorkload = 3, 
+                    IsActive = true,
+                    UniqueName = "suresh.gm"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user4", 
+                    DisplayName = "Dinesh Kumar K", 
+                    Email = "dinesh.k@example.com", 
+                    CurrentWorkload = 3, 
+                    IsActive = true,
+                    UniqueName = "dinesh.k"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user5", 
+                    DisplayName = "Vijayakumar Kanagasabai", 
+                    Email = "vijayakumar.k@example.com", 
+                    CurrentWorkload = 1, 
+                    IsActive = true,
+                    UniqueName = "vijayakumar.k"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user6", 
+                    DisplayName = "Venkateshwaran K", 
+                    Email = "venkateshwaran.k@example.com", 
+                    CurrentWorkload = 1, 
+                    IsActive = true,
+                    UniqueName = "venkateshwaran.k"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user7", 
+                    DisplayName = "Balakrishnan Krishnabose", 
+                    Email = "balakrishnan.k@example.com", 
+                    CurrentWorkload = 1, 
+                    IsActive = true,
+                    UniqueName = "balakrishnan.k"
+                }
             };
         }
 

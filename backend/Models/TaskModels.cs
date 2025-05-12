@@ -31,5 +31,6 @@ namespace AI_Scrum.Models
         public string Email { get; set; } = string.Empty;
         public int CurrentWorkload { get; set; }
         public bool IsActive { get; set; } = true;
+        public string UniqueName { get; set; } = string.Empty;
     }
 } 

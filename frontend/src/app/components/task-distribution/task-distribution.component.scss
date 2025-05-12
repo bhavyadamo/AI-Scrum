@@ -112,6 +112,34 @@
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
+/* Dropdown in the Assign Task modal */
+#teamMemberSelect {
+  max-height: 300px;
+  width: 100%;
+}
+
+#teamMemberSelect option {
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+#teamMemberSelect option:hover,
+#teamMemberSelect option:focus {
+  background-color: #e9ecef;
+}
+
+/* Override browser styles to ensure dropdown shows multiple items */
+select.form-select {
+  height: auto !important;
+}
+
+select.form-select option {
+  display: block;
+  font-size: 16px;
+  line-height: 1.5;
+  padding: 8px 12px;
+}
+
 /* Animations */
 @keyframes pulse {
   0% {
@@ -123,4 +151,49 @@
   100% {
     box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
   }
+}
+
+/* Custom team member options */
+.team-member-options {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.team-member-options .form-check {
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid #dee2e6 !important;
+}
+
+.team-member-options .form-check:hover {
+  background-color: #f8f9fa;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.team-member-options .form-check-input {
+  cursor: pointer;
+}
+
+.team-member-options .form-check-label {
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.team-member-options .member-name {
+  font-weight: 500;
+}
+
+/* Selected team member option */
+.team-member-options .form-check-input:checked + .form-check-label {
+  color: #0d6efd;
+}
+
+.team-member-options .form-check-input:checked + .form-check-label .member-name {
+  font-weight: 600;
+}
+
+.team-member-options .form-check:has(.form-check-input:checked) {
+  background-color: rgba(13, 110, 253, 0.05);
+  border-color: #0d6efd !important;
 } 

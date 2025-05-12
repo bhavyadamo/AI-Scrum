@@ -85,7 +85,8 @@ export class TaskDistributionComponent implements OnInit {
         this.iterationPaths = [
           'Techoil\\2.3.23',
           'Techoil\\2.3.24',
-          'Techoil\\2.3.25'
+          'Techoil\\2.3.25',
+          'Techoil\\2.3.26'
         ];
         console.log('Using fallback iteration paths:', this.iterationPaths);
         
@@ -231,8 +232,13 @@ export class TaskDistributionComponent implements OnInit {
   }
 
   assignTask(): void {
-    if (!this.selectedTask || !this.selectedMember) {
-      this.error.assign = 'Please select both a task and team member';
+    if (!this.selectedTask) {
+      this.error.assign = 'Error: No task selected for assignment';
+      return;
+    }
+    
+    if (!this.selectedMember) {
+      this.error.assign = 'Please select a team member for assignment';
       return;
     }
 
@@ -269,6 +275,11 @@ export class TaskDistributionComponent implements OnInit {
     this.selectedTask = taskId;
     this.selectedMember = '';
     this.error.assign = null;
+
+    // Ensure we have team members loaded before showing the modal
+    if (this.filteredTeamMembers.length === 0 && !this.loading.members) {
+      this.loadTeamMembers();
+    }
   }
 
   cancelAssign(): void {

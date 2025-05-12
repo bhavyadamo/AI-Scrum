@@ -1,25 +1,25 @@
-# PowerShell script to handle Git commit process
-$ErrorActionPreference = "Stop"
+# PowerShell script for Git operations
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$CommitMessage
+)
 
-# Define commit message
-$commitMessage = "Task Distribution - Fixed team workload and iteration path issues"
+# Display status
+Write-Host "Current Git Status:" -ForegroundColor Cyan
+git status
 
-Write-Host "Adding all changed files..." -ForegroundColor Cyan
+# Add all changes
+Write-Host "`nAdding all changes..." -ForegroundColor Yellow
 git add .
 
-# Check if add was successful
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "Files staged successfully!" -ForegroundColor Green
-    
-    # Commit with proper syntax (space after -m)
-    Write-Host "Committing changes with message: '$commitMessage'" -ForegroundColor Cyan
-    git commit -m "$commitMessage"
-    
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Changes committed successfully!" -ForegroundColor Green
-    } else {
-        Write-Host "Failed to commit changes. Error code: $LASTEXITCODE" -ForegroundColor Red
-    }
-} else {
-    Write-Host "Failed to stage files. Error code: $LASTEXITCODE" -ForegroundColor Red
-} 
+# Commit changes
+Write-Host "`nCommitting changes with message: $CommitMessage" -ForegroundColor Green
+git commit -m $CommitMessage
+
+# Show status after commit
+Write-Host "`nStatus after commit:" -ForegroundColor Cyan
+git status
+
+# Push option (commented out by default)
+# Write-Host "`nPushing changes to remote..." -ForegroundColor Magenta
+# git push 
