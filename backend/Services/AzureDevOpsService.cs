@@ -123,26 +123,27 @@ namespace AI_Scrum.Services
             };
         }
 
-        public async Task<List<AI_Scrum.Models.TeamMember>> GetTeamMembersAsync()
+        public async Task<List<AI_Scrum.Models.TeamMember>> GetTeamMembersAsync(string iterationPath = null)
         {
             try
             {
                 if (string.IsNullOrEmpty(_pat) || string.IsNullOrEmpty(_organization) || string.IsNullOrEmpty(_project))
                 {
                     _logger.LogWarning("Azure DevOps credentials not configured. Returning demo data.");
-                    return GetDemoTeamMembers();
+                    return GetDemoTeamMembers(iterationPath);
                 }
 
                 using var connection = GetConnection();
                 var projectClient = connection.GetClient<ProjectHttpClient>();
                 var teamClient = connection.GetClient<TeamHttpClient>();
+                var witClient = connection.GetClient<WorkItemTrackingHttpClient>();
 
                 // Get project
                 var project = await projectClient.GetProject(_project);
                 if (project == null)
                 {
                     _logger.LogError("Project {Project} not found", _project);
-                    return GetDemoTeamMembers();
+                    return GetDemoTeamMembers(iterationPath);
                 }
 
                 // Get default team (or you could list all teams and select one)
@@ -150,14 +151,14 @@ namespace AI_Scrum.Services
                 if (teams == null || !teams.Any())
                 {
                     _logger.LogError("No teams found in project {Project}", _project);
-                    return GetDemoTeamMembers();
+                    return GetDemoTeamMembers(iterationPath);
                 }
 
                 var defaultTeam = teams.FirstOrDefault();
                 if (defaultTeam == null)
                 {
                     _logger.LogError("Could not find default team in project {Project}", _project);
-                    return GetDemoTeamMembers();
+                    return GetDemoTeamMembers(iterationPath);
                 }
 
                 // Get team members
@@ -168,7 +169,7 @@ namespace AI_Scrum.Services
                 if (teamMembers == null || !teamMembers.Any())
                 {
                     _logger.LogWarning("No team members found in team {Team}", defaultTeam.Name);
-                    return GetDemoTeamMembers();
+                    return GetDemoTeamMembers(iterationPath);
                 }
 
                 var result = new List<AI_Scrum.Models.TeamMember>();
@@ -185,19 +186,43 @@ namespace AI_Scrum.Services
                     });
                 }
 
+                // If we have an iteration path, calculate workload for each member based on tasks in that iteration
+                if (!string.IsNullOrEmpty(iterationPath))
+                {
+                    try
+                    {
+                        // Get work items for the iteration
+                        var workItems = await GetWorkItemsAsync(iterationPath);
+                        
+                        // Calculate workload for each team member
+                        foreach (var member in result)
+                        {
+                            member.CurrentWorkload = workItems.Count(wi => 
+                                !string.IsNullOrEmpty(wi.AssignedTo) && 
+                                (wi.AssignedTo.Equals(member.DisplayName, StringComparison.OrdinalIgnoreCase) || 
+                                 wi.AssignedTo.Contains(member.Email, StringComparison.OrdinalIgnoreCase) ||
+                                 wi.AssignedTo.Contains(member.UniqueName, StringComparison.OrdinalIgnoreCase)));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Error calculating workload for team members in iteration {IterationPath}", iterationPath);
+                    }
+                }
+
                 return result;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting team members from Azure DevOps");
-                return GetDemoTeamMembers();
+                return GetDemoTeamMembers(iterationPath);
             }
         }
 
-        private List<AI_Scrum.Models.TeamMember> GetDemoTeamMembers()
+        private List<AI_Scrum.Models.TeamMember> GetDemoTeamMembers(string iterationPath = null)
         {
             // Return demo data for development/when Azure DevOps is not configured
-            return new List<AI_Scrum.Models.TeamMember>
+            var demoMembers = new List<AI_Scrum.Models.TeamMember>
             {
                 new AI_Scrum.Models.TeamMember 
                 { 
@@ -263,6 +288,26 @@ namespace AI_Scrum.Services
                     UniqueName = "balakrishnan.k"
                 }
             };
+
+            // If we have an iteration path, simulate workload for demo data
+            if (!string.IsNullOrEmpty(iterationPath))
+            {
+                // Just for demo purposes, adjust workload based on iteration path
+                var iterationNumber = iterationPath.Contains("2.3.23") ? 23 : 
+                                     (iterationPath.Contains("2.3.24") ? 24 : 
+                                     (iterationPath.Contains("2.3.25") ? 25 : 26));
+                
+                // For demo purposes, make workload vary by iteration
+                demoMembers[0].CurrentWorkload = (iterationNumber % 4);
+                demoMembers[1].CurrentWorkload = ((iterationNumber + 1) % 4);
+                demoMembers[2].CurrentWorkload = ((iterationNumber + 2) % 5);
+                demoMembers[3].CurrentWorkload = ((iterationNumber + 3) % 5);
+                demoMembers[4].CurrentWorkload = ((iterationNumber + 1) % 3);
+                demoMembers[5].CurrentWorkload = ((iterationNumber + 2) % 3);
+                demoMembers[6].CurrentWorkload = ((iterationNumber + 3) % 3);
+            }
+
+            return demoMembers;
         }
 
         public async Task<List<AI_Scrum.Models.WorkItem>> GetWorkItemsAsync(string iterationPath)

@@ -84,11 +84,17 @@ namespace AI_Scrum.Controllers
         }
 
         [HttpGet("team-members")]
-        public async Task<ActionResult<List<TeamMember>>> GetTeamMembers()
+        public async Task<ActionResult<List<TeamMember>>> GetTeamMembers([FromQuery] string iterationPath = null)
         {
             try
             {
-                var teamMembers = await _azureDevOpsService.GetTeamMembersAsync();
+                // Decode URL-encoded characters, especially backslashes
+                if (!string.IsNullOrEmpty(iterationPath))
+                {
+                    iterationPath = Uri.UnescapeDataString(iterationPath);
+                }
+                
+                var teamMembers = await _azureDevOpsService.GetTeamMembersAsync(iterationPath);
                 return Ok(teamMembers);
             }
             catch (Exception ex)

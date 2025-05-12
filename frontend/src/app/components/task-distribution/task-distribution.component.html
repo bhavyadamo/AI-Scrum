@@ -69,13 +69,15 @@
                     </span>
                   </td>
                   <td>
-                    <span *ngIf="task.assignedTo">{{ task.assignedTo }}</span>
-                    <span *ngIf="!task.assignedTo" class="text-muted">Unassigned</span>
-                    <div *ngIf="task.autoAssignSuggestion" class="mt-1 suggestion-box">
-                      <small class="text-primary">
-                        <i class="bi bi-lightbulb-fill"></i> 
-                        Suggest: {{ task.autoAssignSuggestion }}
-                      </small>
+                    <div class="d-flex align-items-center">
+                      <span *ngIf="task.assignedTo" class="me-2">{{ task.assignedTo }}</span>
+                      <span *ngIf="!task.assignedTo" class="text-muted me-2">Unassigned</span>
+                      <div *ngIf="task.autoAssignSuggestion" class="ms-1 suggestion-box">
+                        <small class="text-primary">
+                          <i class="bi bi-lightbulb-fill"></i> 
+                          Suggest: {{ task.autoAssignSuggestion }}
+                        </small>
+                      </div>
                     </div>
                   </td>
                   <td>
@@ -158,7 +160,21 @@
           <button type="button" class="btn-close" (click)="cancelAssign()"></button>
         </div>
         <div class="modal-body">
-          <div *ngIf="error.assign" class="alert alert-danger">{{ error.assign }}</div>
+          <div *ngIf="error.assign" class="alert alert-danger mb-3">{{ error.assign }}</div>
+          
+          <div *ngIf="selectedTask">
+            <div class="mb-3">
+              <label class="form-label fw-bold">Task ID</label>
+              <div class="py-2 px-3 bg-light rounded">{{ selectedTask }}</div>
+            </div>
+            
+            <div class="mb-3">
+              <label class="form-label fw-bold">Task Title</label>
+              <div class="py-2 px-3 bg-light rounded">
+                {{ tasks.find(t => t.id === selectedTask)?.title || 'Unknown Task' }}
+              </div>
+            </div>
+          </div>
           
           <div class="mb-4">
             <label for="teamMemberSelect" class="form-label fw-bold mb-2">Select Team Member</label>
@@ -196,7 +212,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" (click)="cancelAssign()">Cancel</button>
-          <button type="button" class="btn btn-primary" (click)="assignTask()" [disabled]="loading.assign">
+          <button type="button" class="btn btn-primary" (click)="assignTask()" [disabled]="loading.assign || !selectedMember">
             <span *ngIf="!loading.assign">Assign</span>
             <span *ngIf="loading.assign">
               <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>

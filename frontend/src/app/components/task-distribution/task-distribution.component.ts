@@ -126,7 +126,8 @@ export class TaskDistributionComponent implements OnInit {
     this.loading.members = true;
     this.error.members = null;
 
-    this.teamService.getTeamMembers().subscribe({
+    // Use the taskService directly to get team members by iteration path
+    this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
       next: (members) => {
         this.teamMembers = members;
         console.log('Loaded team members:', members);
@@ -148,9 +149,9 @@ export class TaskDistributionComponent implements OnInit {
         
         // Add fallback team members if API call fails
         this.teamMembers = [
-          { id: '1', displayName: 'Ranjith Kumar S', email: 'ranjithkumar.s@inatech.onmicrosoft.com', currentWorkload: 0, uniqueName: 'ranjithkumar.s' },
-          { id: '2', displayName: 'Rabirai Madhavan', email: 'rabiraj.m@example.com', currentWorkload: 0, uniqueName: 'rabiraj.m' },
-          { id: '3', displayName: 'Dhinakarraj Sivakumar', email: 'dhivakarraj.s@example.com', currentWorkload: 0, uniqueName: 'dhivakarraj.s' }
+          { id: '1', displayName: 'Ranjith Kumar S', email: 'ranjithkumar.s@inatech.onmicrosoft.com', currentWorkload: 0, isActive: true, uniqueName: 'ranjithkumar.s' },
+          { id: '2', displayName: 'Rabirai Madhavan', email: 'rabiraj.m@example.com', currentWorkload: 0, isActive: true, uniqueName: 'rabiraj.m' },
+          { id: '3', displayName: 'Dhinakarraj Sivakumar', email: 'dhivakarraj.s@example.com', currentWorkload: 0, isActive: true, uniqueName: 'dhivakarraj.s' }
         ];
         this.filteredTeamMembers = [...this.teamMembers];
         console.log('Using fallback team members:', this.teamMembers);
@@ -243,16 +244,45 @@ export class TaskDistributionComponent implements OnInit {
     }
 
     this.loading.assign = true;
+    this.error.assign = null;
+    
+    console.log(`Assigning task ${this.selectedTask} to member ${this.selectedMember}`);
+    
     this.taskService.assignTask(this.selectedTask, this.selectedMember).subscribe({
-      next: () => {
-        this.loadTasks(); // Reload tasks to reflect changes
+      next: (response) => {
+        console.log('Task assignment successful:', response);
+        // Close the modal
         this.cancelAssign();
+        // Show success message (could be implemented with a toast/snackbar service)
+        this.showSuccessMessage('Task assigned successfully');
+        // Reload tasks to reflect changes
+        this.loadTasks();
       },
       error: (err) => {
+        console.error('Error assigning task:', err);
         this.error.assign = `Failed to assign task: ${err.message}`;
         this.loading.assign = false;
       }
     });
+  }
+
+  // Helper method to show success message (placeholder for toast/snackbar)
+  showSuccessMessage(message: string): void {
+    console.log('SUCCESS:', message);
+    // In a real implementation, you would use a toast/snackbar service
+    // Example: this.toastService.show(message, { classname: 'bg-success' });
+    
+    // For now, create a simple alert element that disappears after a few seconds
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-success position-fixed top-0 end-0 m-3';
+    alertDiv.textContent = message;
+    alertDiv.style.zIndex = '9999';
+    document.body.appendChild(alertDiv);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      alertDiv.remove();
+    }, 3000);
   }
 
   autoAssignTasks(): void {
@@ -391,9 +421,14 @@ export class TaskDistributionComponent implements OnInit {
    * @param iterationPath New iteration path to load tasks from
    */
   changeIterationPath(iterationPath: string): void {
-    if (iterationPath !== this.currentIterationPath) {
-      this.currentIterationPath = iterationPath;
-      this.loadTasks();
-    }
+    console.log(`Changing iteration path to: ${iterationPath}`);
+    this.currentIterationPath = iterationPath;
+    
+    // Reset selected task if any
+    this.selectedTask = null;
+    
+    // Load tasks and team members for the new iteration path
+    this.loadTasks();
+    this.loadTeamMembers(); // Now this will pass the current iteration path
   }
 }
