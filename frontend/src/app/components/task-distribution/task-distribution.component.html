@@ -6,8 +6,8 @@
         <div>
           <!-- Iteration Path Selection -->
           <div class="d-inline-block me-3">
-            <select class="form-select" [(ngModel)]="currentIterationPath" (change)="changeIterationPath(currentIterationPath)" [disabled]="loading.iterationPaths">
-              <option *ngFor="let path of iterationPaths" [value]="path">{{ path }}</option>
+            <select class="form-select" [ngModel]="currentIterationPath" (ngModelChange)="changeIterationPath($event)" [disabled]="loading.iterationPaths">
+              <option *ngFor="let path of iterationPaths" [ngValue]="path">{{ path }}</option>
             </select>
             <div *ngIf="loading.iterationPaths" class="text-muted small mt-1">
               <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
@@ -131,12 +131,12 @@
                   </div>
                   <div class="progress mt-2">
                     <div class="progress-bar" 
-                         [ngClass]="getProgressBarClass(member.currentWorkload)"
-                         [style.width.%]="getWorkloadPercentage(member.currentWorkload)" 
-                         role="progressbar" 
-                         [attr.aria-valuenow]="member.currentWorkload" 
-                         aria-valuemin="0" 
-                         aria-valuemax="10">
+                        [ngClass]="getProgressBarClass(member.currentWorkload)"
+                        [style.width.%]="getWorkloadPercentage(member.currentWorkload)" 
+                        role="progressbar" 
+                        [attr.aria-valuenow]="member.currentWorkload" 
+                        aria-valuemin="0" 
+                        aria-valuemax="10">
                     </div>
                   </div>
                   <div *ngIf="member.email" class="text-muted mt-2 small">
@@ -152,7 +152,7 @@
   </div>
 
   <!-- Assign Task Modal -->
-  <div class="modal" [class.show]="selectedTask !== null" [style.display]="selectedTask !== null ? 'block' : 'none'" tabindex="-1">
+  <div class="modal" [ngClass]="{'show': selectedTask !== null}" [style.display]="selectedTask !== null ? 'block' : 'none'" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
@@ -162,7 +162,7 @@
         <div class="modal-body">
           <div *ngIf="error.assign" class="alert alert-danger mb-3">{{ error.assign }}</div>
           
-          <div *ngIf="selectedTask">
+          <div *ngIf="selectedTask !== null">
             <div class="mb-3">
               <label class="form-label fw-bold">Task ID</label>
               <div class="py-2 px-3 bg-light rounded">{{ selectedTask }}</div>
@@ -171,7 +171,7 @@
             <div class="mb-3">
               <label class="form-label fw-bold">Task Title</label>
               <div class="py-2 px-3 bg-light rounded">
-                {{ tasks.find(t => t.id === selectedTask)?.title || 'Unknown Task' }}
+                {{ getSelectedTaskTitle() }}
               </div>
             </div>
           </div>
@@ -182,7 +182,7 @@
             <!-- Regular Select Dropdown -->
             <select class="form-select" id="teamMemberSelect" [(ngModel)]="selectedMember" size="6">
               <option value="">-- Select Team Member --</option>
-              <option *ngFor="let member of filteredTeamMembers" [value]="member.id">
+              <option *ngFor="let member of filteredTeamMembers" [ngValue]="member.id">
                 {{ member.displayName }} 
                 <span *ngIf="member.currentWorkload > 0">({{ member.currentWorkload }} Tasks)</span>
               </option>
@@ -198,7 +198,7 @@
                   [value]="member.id" 
                   [(ngModel)]="selectedMember" 
                   name="teamMemberRadio">
-                <label class="form-check-label w-100" [for]="'member-' + member.id">
+                <label class="form-check-label w-100" [attr.for]="'member-' + member.id">
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="member-name">{{ member.displayName }}</span>
                     <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(member.currentWorkload)">

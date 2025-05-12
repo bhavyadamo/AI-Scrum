@@ -116,10 +116,8 @@ namespace AI_Scrum.Services
             // Return demo data for development/when Azure DevOps is not configured
             return new List<string>
             {
-                "Techoil\\2.3.23",
-                "Techoil\\2.3.24",
-                "Techoil\\2.3.25",
-                "Techoil\\2.3.26"
+                "Techoil\\2.3.23"
+                // Removed non-existent iteration paths that were causing errors
             };
         }
 
@@ -286,6 +284,24 @@ namespace AI_Scrum.Services
                     CurrentWorkload = 1, 
                     IsActive = true,
                     UniqueName = "balakrishnan.k"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user8", 
+                    DisplayName = "Test User One", 
+                    Email = "test.user1@example.com", 
+                    CurrentWorkload = 0, 
+                    IsActive = true,
+                    UniqueName = "test.user1"
+                },
+                new AI_Scrum.Models.TeamMember 
+                { 
+                    Id = "user9", 
+                    DisplayName = "Test User Two", 
+                    Email = "test.user2@example.com", 
+                    CurrentWorkload = 0, 
+                    IsActive = true,
+                    UniqueName = "test.user2"
                 }
             };
 
@@ -317,7 +333,7 @@ namespace AI_Scrum.Services
                 if (string.IsNullOrEmpty(_pat) || string.IsNullOrEmpty(_organization) || string.IsNullOrEmpty(_project))
                 {
                     _logger.LogWarning("Azure DevOps credentials not configured. Returning demo data.");
-                    return GetDemoWorkItems();
+                    return GetDemoWorkItems(iterationPath);
                 }
 
                 using var connection = GetConnection();
@@ -333,72 +349,109 @@ namespace AI_Scrum.Services
                            $"ORDER BY [System.Id]"
                 };
 
-                var queryResult = await witClient.QueryByWiqlAsync(wiql);
-                
-                if (queryResult.WorkItems.Count() == 0)
+                try
                 {
-                    return new List<AI_Scrum.Models.WorkItem>();
-                }
-                
-                // Get work item details for the results
-                var ids = queryResult.WorkItems.Select(wi => wi.Id).ToArray();
-                var workItemRefs = await witClient.GetWorkItemsAsync(ids, 
-                    expand: Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.WorkItemExpand.All);
-                
-                var workItems = new List<AI_Scrum.Models.WorkItem>();
-                
-                foreach (var item in workItemRefs)
-                {
-                    var workItem = new AI_Scrum.Models.WorkItem
-                    {
-                        Id = item.Id.Value,
-                        Title = item.Fields["System.Title"]?.ToString() ?? "",
-                        Status = item.Fields["System.State"]?.ToString() ?? "",
-                        Type = item.Fields["System.WorkItemType"]?.ToString() ?? "",
-                        AssignedTo = item.Fields.ContainsKey("System.AssignedTo") 
-                            ? (item.Fields["System.AssignedTo"] is Microsoft.VisualStudio.Services.WebApi.IdentityRef assignedToRef 
-                                ? assignedToRef.DisplayName 
-                                : item.Fields["System.AssignedTo"]?.ToString() ?? "")
-                            : "",
-                        Priority = item.Fields.ContainsKey("Microsoft.VSTS.Common.Priority") 
-                            ? item.Fields["Microsoft.VSTS.Common.Priority"]?.ToString() ?? "3" 
-                            : "3",
-                        IterationPath = item.Fields["System.IterationPath"]?.ToString() ?? ""
-                    };
+                    var queryResult = await witClient.QueryByWiqlAsync(wiql);
                     
-                    workItems.Add(workItem);
+                    if (queryResult.WorkItems.Count() == 0)
+                    {
+                        return new List<AI_Scrum.Models.WorkItem>();
+                    }
+                    
+                    // Get work item details for the results
+                    var ids = queryResult.WorkItems.Select(wi => wi.Id).ToArray();
+                    var workItemRefs = await witClient.GetWorkItemsAsync(ids, 
+                        expand: Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.WorkItemExpand.All);
+                    
+                    var workItems = new List<AI_Scrum.Models.WorkItem>();
+                    
+                    foreach (var item in workItemRefs)
+                    {
+                        var workItem = new AI_Scrum.Models.WorkItem
+                        {
+                            Id = item.Id.Value,
+                            Title = item.Fields["System.Title"]?.ToString() ?? "",
+                            Status = item.Fields["System.State"]?.ToString() ?? "",
+                            Type = item.Fields["System.WorkItemType"]?.ToString() ?? "",
+                            AssignedTo = item.Fields.ContainsKey("System.AssignedTo") 
+                                ? (item.Fields["System.AssignedTo"] is Microsoft.VisualStudio.Services.WebApi.IdentityRef assignedToRef 
+                                    ? assignedToRef.DisplayName 
+                                    : item.Fields["System.AssignedTo"]?.ToString() ?? "")
+                                : "",
+                            Priority = item.Fields.ContainsKey("Microsoft.VSTS.Common.Priority") 
+                                ? item.Fields["Microsoft.VSTS.Common.Priority"]?.ToString() ?? "3" 
+                                : "3",
+                            IterationPath = item.Fields["System.IterationPath"]?.ToString() ?? ""
+                        };
+                        
+                        workItems.Add(workItem);
+                    }
+                    
+                    return workItems;
                 }
-                
-                return workItems;
+                catch (VssServiceException ex) when (ex.Message.Contains("iteration path does not exist"))
+                {
+                    _logger.LogWarning("Iteration path '{IterationPath}' does not exist in Azure DevOps. Returning demo data.", iterationPath);
+                    return GetDemoWorkItems(iterationPath);
+                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting work items for iteration {IterationPath}", iterationPath);
-                return GetDemoWorkItems();
+                return GetDemoWorkItems(iterationPath);
             }
         }
 
-        private List<AI_Scrum.Models.WorkItem> GetDemoWorkItems()
+        private List<AI_Scrum.Models.WorkItem> GetDemoWorkItems(string iterationPath = null)
         {
             // Return demo data for development/when Azure DevOps is not configured
-            return new List<AI_Scrum.Models.WorkItem>
+            var demoItems = new List<AI_Scrum.Models.WorkItem>
             {
-                new AI_Scrum.Models.WorkItem { Id = 1001, Title = "Create login screen", Status = "Completed", AssignedTo = "Jane Smith", Type = "Task", Priority = "2", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1002, Title = "Implement user authentication", Status = "In Progress", AssignedTo = "John Doe", Type = "Task", Priority = "1", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1003, Title = "Design database schema", Status = "Completed", AssignedTo = "Sam Wilson", Type = "Task", Priority = "1", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1004, Title = "Create API endpoints", Status = "In Progress", AssignedTo = "Jane Smith", Type = "Task", Priority = "2", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1005, Title = "Implement dashboard UI", Status = "In Progress", AssignedTo = "Alex Johnson", Type = "Task", Priority = "2", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1006, Title = "Write unit tests", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "3", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1007, Title = "Setup CI/CD pipeline", Status = "Blocked", AssignedTo = "John Doe", Type = "Task", Priority = "2", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1008, Title = "Implement error logging", Status = "Completed", AssignedTo = "Sam Wilson", Type = "Task", Priority = "3", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1009, Title = "Create user documentation", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "4", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1010, Title = "Performance optimization", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "3", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1011, Title = "Security audit", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "1", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1012, Title = "Integration testing", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "2", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1013, Title = "Implement feedback from testers", Status = "Completed", AssignedTo = "Alex Johnson", Type = "Task", Priority = "2", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1014, Title = "Deploy to staging", Status = "Completed", AssignedTo = "John Doe", Type = "Task", Priority = "1", IterationPath = "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1015, Title = "Final QA review", Status = "In Progress", AssignedTo = "Jane Smith", Type = "Task", Priority = "1", IterationPath = "Project\\Sprint 3" }
+                new AI_Scrum.Models.WorkItem { Id = 1001, Title = "Create login screen", Status = "Completed", AssignedTo = "Jane Smith", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1002, Title = "Implement user authentication", Status = "In Progress", AssignedTo = "John Doe", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1003, Title = "Design database schema", Status = "Completed", AssignedTo = "Sam Wilson", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1004, Title = "Create API endpoints", Status = "In Progress", AssignedTo = "Jane Smith", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1005, Title = "Implement dashboard UI", Status = "In Progress", AssignedTo = "Alex Johnson", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1006, Title = "Write unit tests", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "3", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1007, Title = "Setup CI/CD pipeline", Status = "Blocked", AssignedTo = "John Doe", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1008, Title = "Implement error logging", Status = "Completed", AssignedTo = "Sam Wilson", Type = "Task", Priority = "3", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1009, Title = "Create user documentation", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "4", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1010, Title = "Performance optimization", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "3", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1011, Title = "Security audit", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1012, Title = "Integration testing", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1013, Title = "Implement feedback from testers", Status = "Completed", AssignedTo = "Alex Johnson", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1014, Title = "Deploy to staging", Status = "Completed", AssignedTo = "John Doe", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
+                new AI_Scrum.Models.WorkItem { Id = 1015, Title = "Final QA review", Status = "In Progress", AssignedTo = "Jane Smith", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" }
             };
+            
+            // For iterations that match our demo data format, we'll modify assignees to match our demo team members
+            if (!string.IsNullOrEmpty(iterationPath) && iterationPath.StartsWith("Techoil\\"))
+            {
+                var teamMembers = GetDemoTeamMembers(iterationPath)
+                    .Select(m => m.DisplayName)
+                    .ToList();
+                    
+                if (teamMembers.Any())
+                {
+                    // Distribute tasks among team members
+                    for (int i = 0; i < demoItems.Count; i++)
+                    {
+                        var item = demoItems[i];
+                        // For some tasks, leave them unassigned
+                        if (i % 4 != 3) // Assign 3 out of every 4 tasks
+                        {
+                            item.AssignedTo = teamMembers[i % teamMembers.Count];
+                        }
+                        else
+                        {
+                            item.AssignedTo = "";
+                        }
+                        item.IterationPath = iterationPath;
+                    }
+                }
+            }
+            
+            return demoItems;
         }
 
         public async Task<bool> UpdateWorkItemAsync(int id, Dictionary<string, object> updates)
@@ -428,8 +481,8 @@ namespace AI_Scrum.Services
                 
                 try
                 {
-                    var result = await witClient.UpdateWorkItemAsync(patchDocument, id);
-                    return result != null;
+                var result = await witClient.UpdateWorkItemAsync(patchDocument, id);
+                return result != null;
                 }
                 catch (VssUnauthorizedException)
                 {

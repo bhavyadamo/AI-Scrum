@@ -84,7 +84,7 @@ namespace AI_Scrum.Controllers
         }
 
         [HttpGet("team-members")]
-        public async Task<ActionResult<List<TeamMember>>> GetTeamMembers([FromQuery] string iterationPath = null)
+        public async Task<ActionResult<List<string>>> GetTeamMembers([FromQuery] string iterationPath = null)
         {
             try
             {
@@ -94,8 +94,34 @@ namespace AI_Scrum.Controllers
                     iterationPath = Uri.UnescapeDataString(iterationPath);
                 }
                 
-                var teamMembers = await _azureDevOpsService.GetTeamMembersAsync(iterationPath);
-                return Ok(teamMembers);
+                // Check if we need to get team members from tasks or from Azure DevOps
+                if (!string.IsNullOrEmpty(iterationPath))
+                {
+                    // 1. Get all tasks for the given iteration path
+                    var tasks = await _taskService.GetTasksAsync(iterationPath);
+                    
+                    // 2. Extract distinct, non-null assignedTo values
+                    var teamMembers = tasks
+                        .Where(t => !string.IsNullOrEmpty(t.AssignedTo))
+                        .Select(t => t.AssignedTo)
+                        .Distinct()
+                        .OrderBy(name => name)
+                        .ToList();
+                    
+                    return Ok(teamMembers);
+                }
+                else
+                {
+                    // Fallback to Azure DevOps team members if no iteration path is specified
+                    var teamMembers = await _azureDevOpsService.GetTeamMembersAsync(iterationPath);
+                    // Map to simple string list of display names for consistency
+                    var memberNames = teamMembers
+                        .Select(m => m.DisplayName)
+                        .OrderBy(name => name)
+                        .ToList();
+                    
+                    return Ok(memberNames);
+                }
             }
             catch (Exception ex)
             {

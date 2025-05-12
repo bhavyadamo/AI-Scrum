@@ -431,4 +431,18 @@ export class TaskDistributionComponent implements OnInit {
     this.loadTasks();
     this.loadTeamMembers(); // Now this will pass the current iteration path
   }
+
+  /**
+   * Get the title of the currently selected task
+   * @returns The task title or a fallback message
+   */
+  getSelectedTaskTitle(): string {
+    if (this.selectedTask === null) {
+      return 'No task selected';
+    }
+    
+    const selectedTaskId = this.selectedTask;
+    const task = this.tasks.find(t => t.id === selectedTaskId);
+    return task ? task.title : 'Unknown Task';
+  }
 }

@@ -54,7 +54,7 @@ Set-Location -Path $PSScriptRoot
 # Install frontend dependencies and build
 Write-Host "`nInstalling frontend dependencies and building..." -ForegroundColor Green
 Set-Location -Path "$PSScriptRoot\frontend"
-npm install
+npm install --legacy-peer-deps
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Frontend npm install failed with exit code $LASTEXITCODE" -ForegroundColor Red
     exit 1
