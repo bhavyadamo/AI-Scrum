@@ -1,6 +1,46 @@
-<div class="container">
-  <h2>Application Settings</h2>
-  <div class="alert alert-info">
-    This feature is currently under development. Check back soon for application and integration configuration settings.
+<div class="container mt-4">
+  <h2 class="mb-4">Application Settings</h2>
+  
+  <!-- Role switcher for demo purposes -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="d-flex align-items-center">
+        <div class="me-3">
+          <strong>Demo Mode:</strong> Change your current role
+        </div>
+        <select [(ngModel)]="demoUserRole" (change)="changeUserRole()" class="form-select w-auto">
+          <option *ngFor="let role of roleOptions" [value]="role.value">{{role.label}}</option>
+        </select>
+        <div class="ms-3 text-muted">
+          <small>Current role: <span class="fw-bold">{{authService.currentUserValue?.role}}</span></small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab navigation for settings sections -->
+  <ul class="nav nav-tabs mb-4">
+    <li class="nav-item">
+      <a class="nav-link active" data-bs-toggle="tab" href="#userRoles">User Roles</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="tab" href="#azureDevOps">Azure DevOps</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="tab" href="#aiModel">AI Model</a>
+    </li>
+  </ul>
+
+  <!-- Tab content -->
+  <div class="tab-content">
+    <div class="tab-pane fade show active" id="userRoles">
+      <app-user-roles></app-user-roles>
+    </div>
+    <div class="tab-pane fade" id="azureDevOps">
+      <app-azure-devops-settings></app-azure-devops-settings>
+    </div>
+    <div class="tab-pane fade" id="aiModel">
+      <app-ai-model-settings></app-ai-model-settings>
+    </div>
   </div>
 </div> 

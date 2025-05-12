@@ -1,0 +1,96 @@
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0">Azure DevOps Integration</h5>
+  </div>
+  <div class="card-body">
+    <!-- Error and success alerts -->
+    <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ error }}
+      <button type="button" class="btn-close" (click)="error = ''"></button>
+    </div>
+    
+    <div *ngIf="success" class="alert alert-success alert-dismissible fade show" role="alert">
+      {{ success }}
+      <button type="button" class="btn-close" (click)="success = ''"></button>
+    </div>
+
+    <!-- Loading state -->
+    <div *ngIf="loading" class="d-flex justify-content-center mb-3">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <!-- No permission message -->
+    <div *ngIf="!authService.canViewAzureDevOpsPat() && !loading" class="alert alert-warning">
+      <i class="bi bi-lock-fill me-2"></i>
+      You do not have permission to view Azure DevOps settings. Contact an administrator.
+    </div>
+
+    <!-- Current settings display -->
+    <div *ngIf="authService.canViewAzureDevOpsPat() && !loading && settings">
+      <div class="mb-4">
+        <h6 class="mb-2">Current Settings</h6>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="form-label text-muted">Organization</label>
+              <input type="text" class="form-control" [value]="settings.organization" readonly>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="form-label text-muted">Project</label>
+              <input type="text" class="form-control" [value]="settings.project" readonly>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="form-group">
+              <label class="form-label text-muted">Personal Access Token</label>
+              <div class="input-group">
+                <input [type]="showPat ? 'text' : 'password'" class="form-control" [value]="settings.personalAccessToken" readonly>
+                <button class="btn btn-outline-secondary" type="button" (click)="togglePatVisibility()">
+                  <i class="bi" [ngClass]="showPat ? 'bi-eye-slash' : 'bi-eye'"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Update PAT form - only for admins -->
+      <div *ngIf="authService.canEditAzureDevOpsPat()">
+        <hr class="my-4">
+        <h6 class="mb-3">Update Personal Access Token</h6>
+        <form [formGroup]="patForm" (ngSubmit)="updatePat()">
+          <div class="mb-3">
+            <label for="pat" class="form-label">New Personal Access Token</label>
+            <div class="input-group">
+              <input 
+                type="password" 
+                class="form-control" 
+                id="pat" 
+                formControlName="personalAccessToken"
+                placeholder="Enter your Azure DevOps PAT">
+            </div>
+            <div *ngIf="patForm.get('personalAccessToken')?.invalid && patForm.get('personalAccessToken')?.touched" class="text-danger mt-1">
+              <small *ngIf="patForm.get('personalAccessToken')?.errors?.['required']">Personal Access Token is required</small>
+              <small *ngIf="patForm.get('personalAccessToken')?.errors?.['minlength']">Token must be at least 20 characters</small>
+            </div>
+            <small class="form-text text-muted mt-1">
+              <i class="bi bi-info-circle"></i>
+              The Personal Access Token is used to authenticate with Azure DevOps. 
+              <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate" target="_blank">
+                Learn more
+              </a>
+            </small>
+          </div>
+          
+          <button type="submit" class="btn btn-primary" [disabled]="patForm.invalid || loading">
+            <i class="bi bi-check-circle me-1"></i> Save Token
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div> 

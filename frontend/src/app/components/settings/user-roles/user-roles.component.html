@@ -1,0 +1,68 @@
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0">User Role Management</h5>
+  </div>
+  <div class="card-body">
+    <!-- Error and success alerts -->
+    <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ error }}
+      <button type="button" class="btn-close" (click)="error = ''"></button>
+    </div>
+    
+    <div *ngIf="success" class="alert alert-success alert-dismissible fade show" role="alert">
+      {{ success }}
+      <button type="button" class="btn-close" (click)="success = ''"></button>
+    </div>
+
+    <!-- Loading state -->
+    <div *ngIf="loading" class="d-flex justify-content-center mb-3">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <!-- No permission message -->
+    <div *ngIf="!authService.canViewUserRoles() && !loading" class="alert alert-warning">
+      <i class="bi bi-lock-fill me-2"></i>
+      You do not have permission to view user roles. Contact an administrator.
+    </div>
+
+    <!-- User roles table -->
+    <div *ngIf="authService.canViewUserRoles() && !loading && userRoles.length > 0" class="table-responsive">
+      <table class="table table-hover">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th *ngIf="authService.canEditUserRoles()">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let user of userRoles">
+            <td>{{ user.userName }}</td>
+            <td>{{ user.email }}</td>
+            <td>
+              <span [ngClass]="getRoleBadgeClass(user.role)">{{ user.role }}</span>
+            </td>
+            <td *ngIf="authService.canEditUserRoles()">
+              <select class="form-select form-select-sm" 
+                      [(ngModel)]="user.role" 
+                      (ngModelChange)="updateUserRole(user, $event)"
+                      [disabled]="loading">
+                <option *ngFor="let role of roleOptions" [ngValue]="role.value">
+                  {{ role.label }}
+                </option>
+              </select>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Empty state -->
+    <div *ngIf="authService.canViewUserRoles() && !loading && userRoles.length === 0" class="text-center py-4">
+      <p class="text-muted">No users found</p>
+    </div>
+  </div>
+</div> 

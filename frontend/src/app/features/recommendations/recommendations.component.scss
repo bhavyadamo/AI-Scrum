@@ -1,0 +1,31 @@
+.recommendation-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.recommendation-content {
+  flex-grow: 1;
+}
+
+.recommendation-card {
+  transition: all 0.3s ease;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-2px);
+}
+
+// Adding a subtle animation for new recommendations
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.recommendation-card {
+  animation: fadeIn 0.5s ease-out;
+} 

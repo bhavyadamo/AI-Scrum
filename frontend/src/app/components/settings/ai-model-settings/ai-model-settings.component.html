@@ -1,0 +1,76 @@
+<div class="card">
+  <div class="card-header">
+    <h5 class="mb-0">AI Model Settings</h5>
+  </div>
+  <div class="card-body">
+    <!-- Error and success alerts -->
+    <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ error }}
+      <button type="button" class="btn-close" (click)="error = ''"></button>
+    </div>
+    
+    <div *ngIf="success" class="alert alert-success alert-dismissible fade show" role="alert">
+      {{ success }}
+      <button type="button" class="btn-close" (click)="success = ''"></button>
+    </div>
+
+    <!-- Loading state -->
+    <div *ngIf="loading" class="d-flex justify-content-center mb-3">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <!-- AI Model Settings -->
+    <div *ngIf="!loading && settings">
+      <div class="mb-4">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="form-label text-muted">Model Endpoint</label>
+              <input type="text" class="form-control" [value]="settings.modelEndpoint" readonly>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="form-label text-muted">API Key</label>
+              <input type="password" class="form-control" value="••••••••••••••••" readonly>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Model Auto-Update Toggle -->
+      <div class="mt-4">
+        <div class="card bg-light">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <h6 class="mb-0">AI Model Auto-Update</h6>
+                <p class="text-muted mb-0 small">
+                  When enabled, the AI model will automatically update with the latest data.
+                </p>
+              </div>
+              <div class="form-check form-switch">
+                <input 
+                  class="form-check-input" 
+                  type="checkbox" 
+                  role="switch" 
+                  id="aiAutoUpdate" 
+                  [checked]="settings.enableAutoUpdate" 
+                  (change)="toggleAutoUpdate()"
+                  [disabled]="loading || !authService.canEditAiModelSettings()">
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Info message about permissions -->
+        <div *ngIf="!authService.canEditAiModelSettings()" class="alert alert-info mt-3">
+          <i class="bi bi-info-circle me-2"></i>
+          You can view AI model settings, but you need Admin or Scrum Master role to modify them.
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

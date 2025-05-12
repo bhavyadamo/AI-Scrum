@@ -1,0 +1,57 @@
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <h5 class="mb-0">
+            <i class="bi bi-lightbulb-fill text-warning me-2"></i>
+            AI-Based Recommendations
+          </h5>
+          <small class="text-muted" *ngIf="!loading && recommendations.length > 0">
+            Auto-refreshes every 30 seconds
+          </small>
+        </div>
+        <div class="card-body">
+          <!-- Loading indicator -->
+          <div *ngIf="loading" class="d-flex justify-content-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+          </div>
+
+          <!-- Error message -->
+          <div *ngIf="error" class="alert alert-danger" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            {{ error }}
+          </div>
+
+          <!-- Recommendations list -->
+          <div *ngIf="!loading && !error && recommendations.length > 0" class="recommendation-list">
+            <div *ngFor="let recommendation of recommendations" class="recommendation-card mb-3">
+              <div class="card shadow-sm">
+                <div class="card-body">
+                  <div class="d-flex align-items-center">
+                    <div [ngClass]="'recommendation-icon ' + getSeverityClass(recommendation.severity)" class="me-3">
+                      <i [ngClass]="getSeverityIcon(recommendation.severity)" class="text-white"></i>
+                    </div>
+                    <div class="recommendation-content">
+                      <p class="mb-0">{{ recommendation.message }}</p>
+                      <small class="text-muted">{{ recommendation.timestamp | date:'medium' }}</small>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty state -->
+          <div *ngIf="!loading && !error && recommendations.length === 0" class="text-center py-4">
+            <i class="bi bi-emoji-smile fs-1 text-muted mb-3"></i>
+            <p class="text-muted">No recommendations at this time.</p>
+            <p class="text-muted small">We'll notify you when we have suggestions to improve your workflow.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

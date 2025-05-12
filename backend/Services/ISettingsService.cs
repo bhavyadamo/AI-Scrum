@@ -4,8 +4,19 @@ namespace AI_Scrum.Services
 {
     public interface ISettingsService
     {
-        Task<ApplicationSettings> GetSettingsAsync();
-        Task<bool> UpdateSettingsAsync(ApplicationSettings settings);
-        Task<bool> ValidateAzureDevOpsConnectionAsync(AzureDevOpsSettings settings);
+        // User role management
+        Task<List<UserRoleDto>> GetUserRolesAsync();
+        Task<bool> UpdateUserRoleAsync(UpdateUserRoleRequest request);
+        
+        // Azure DevOps integration settings
+        Task<AzureDevOpsSettingsDto> GetAzureDevOpsSettingsAsync();
+        Task<bool> UpdateAzureDevOpsPATAsync(UpdateAzureDevOpsPATRequest request);
+        
+        // AI model settings
+        Task<AiModelSettingsDto> GetAiModelSettingsAsync();
+        Task<bool> UpdateAiModelSettingsAsync(UpdateAiModelSettingsRequest request);
+        
+        // Get all settings (for admin view)
+        Task<SettingsDto> GetAllSettingsAsync();
     }
 } 

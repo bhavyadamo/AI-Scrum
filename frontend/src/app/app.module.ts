@@ -8,10 +8,11 @@ import { CommonModule } from '@angular/common';
 import { AppComponent } from './app.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { TaskDistributionComponent } from './components/task-distribution/task-distribution.component';
-import { RecommendationsComponent } from './components/recommendations/recommendations.component';
+import { RecommendationsComponent } from './features/recommendations/recommendations.component';
 import { TaskEstimationComponent } from './components/task-estimation/task-estimation.component';
-import { SettingsComponent } from './components/settings/settings.component';
 import { NavbarComponent } from './components/navbar/navbar.component';
+import { SettingsModule } from './components/settings/settings.module';
+import { SettingsComponent } from './components/settings/settings.component';
 
 const routes: Routes = [
   { path: '', redirectTo: '/dashboard', pathMatch: 'full' },
@@ -30,7 +31,6 @@ const routes: Routes = [
     TaskDistributionComponent,
     RecommendationsComponent,
     TaskEstimationComponent,
-    SettingsComponent,
     NavbarComponent
   ],
   imports: [
@@ -39,6 +39,7 @@ const routes: Routes = [
     HttpClientModule,
     FormsModule,
     ReactiveFormsModule,
+    SettingsModule,
     RouterModule.forRoot(routes)
   ],
   providers: [],
