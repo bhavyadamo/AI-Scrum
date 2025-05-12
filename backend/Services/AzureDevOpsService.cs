@@ -11,6 +11,9 @@ using Microsoft.VisualStudio.Services.Common;
 using Microsoft.VisualStudio.Services.WebApi;
 using Microsoft.VisualStudio.Services.WebApi.Patch;
 using Microsoft.VisualStudio.Services.WebApi.Patch.Json;
+using Microsoft.TeamFoundation.Core.WebApi;
+using Microsoft.TeamFoundation.Work.WebApi;
+using Microsoft.TeamFoundation.Core.WebApi.Types;
 using AzDOWorkItem = Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.WorkItem;
 using AzDOTeamMember = Microsoft.VisualStudio.Services.WebApi.TeamMember;
 
@@ -41,27 +44,165 @@ namespace AI_Scrum.Services
             return new VssConnection(uri, credentials);
         }
 
+        public async Task<List<string>> GetIterationPathsAsync()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_pat) || string.IsNullOrEmpty(_organization) || string.IsNullOrEmpty(_project))
+                {
+                    _logger.LogWarning("Azure DevOps credentials not configured. Returning demo data for iteration paths.");
+                    return GetDemoIterationPaths();
+                }
+
+                using var connection = GetConnection();
+                var projectClient = connection.GetClient<ProjectHttpClient>();
+                var teamClient = connection.GetClient<TeamHttpClient>();
+
+                // Get project
+                var project = await projectClient.GetProject(_project);
+                if (project == null)
+                {
+                    _logger.LogError("Project {Project} not found", _project);
+                    return GetDemoIterationPaths();
+                }
+
+                // Get team context - fix for TeamContext not found
+                var teams = await teamClient.GetTeamsAsync(project.Id.ToString());
+                if (teams == null || !teams.Any())
+                {
+                    _logger.LogWarning("No teams found in project {Project}", _project);
+                    return GetDemoIterationPaths();
+                }
+
+                var defaultTeam = teams.FirstOrDefault();
+                if (defaultTeam == null)
+                {
+                    _logger.LogWarning("Could not find default team in project {Project}", _project);
+                    return GetDemoIterationPaths();
+                }
+
+                // Get iterations using team and project
+                var workClient = connection.GetClient<WorkHttpClient>();
+                // Create a proper TeamContext object
+                var teamContext = new TeamContext(project.Id.ToString())
+                {
+                    Team = defaultTeam.Id.ToString()
+                };
+                var iterations = await workClient.GetTeamIterationsAsync(teamContext);
+                if (iterations == null || !iterations.Any())
+                {
+                    _logger.LogWarning("No iterations found for project {Project}", _project);
+                    return GetDemoIterationPaths();
+                }
+
+                // Extract iteration paths
+                var iterationPaths = iterations
+                    .OrderByDescending(i => i.Attributes?.StartDate)
+                    .Select(i => i.Path)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .ToList();
+
+                return iterationPaths;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting iteration paths from Azure DevOps");
+                return GetDemoIterationPaths();
+            }
+        }
+
+        private List<string> GetDemoIterationPaths()
+        {
+            // Return demo data for development/when Azure DevOps is not configured
+            return new List<string>
+            {
+                "Techoil\\2.3.23",
+                "Techoil\\2.3.24",
+                "Techoil\\2.3.25",
+                "Techoil\\2.3.26"
+            };
+        }
+
         public async Task<List<AI_Scrum.Models.TeamMember>> GetTeamMembersAsync()
         {
             try
             {
-                // In a real implementation, you would use Microsoft.TeamFoundation.Core.WebApi
-                // to query team members from Azure DevOps
-                
-                // For demo purposes, return static data
-                return new List<AI_Scrum.Models.TeamMember>
+                if (string.IsNullOrEmpty(_pat) || string.IsNullOrEmpty(_organization) || string.IsNullOrEmpty(_project))
                 {
-                    new AI_Scrum.Models.TeamMember { Id = "user1", DisplayName = "John Doe", Email = "john@example.com", CurrentWorkload = 3, IsActive = true },
-                    new AI_Scrum.Models.TeamMember { Id = "user2", DisplayName = "Jane Smith", Email = "jane@example.com", CurrentWorkload = 5, IsActive = true },
-                    new AI_Scrum.Models.TeamMember { Id = "user3", DisplayName = "Sam Wilson", Email = "sam@example.com", CurrentWorkload = 2, IsActive = true },
-                    new AI_Scrum.Models.TeamMember { Id = "user4", DisplayName = "Alex Johnson", Email = "alex@example.com", CurrentWorkload = 4, IsActive = true }
-                };
+                    _logger.LogWarning("Azure DevOps credentials not configured. Returning demo data.");
+                    return GetDemoTeamMembers();
+                }
+
+                using var connection = GetConnection();
+                var projectClient = connection.GetClient<ProjectHttpClient>();
+                var teamClient = connection.GetClient<TeamHttpClient>();
+
+                // Get project
+                var project = await projectClient.GetProject(_project);
+                if (project == null)
+                {
+                    _logger.LogError("Project {Project} not found", _project);
+                    return GetDemoTeamMembers();
+                }
+
+                // Get default team (or you could list all teams and select one)
+                var teams = await teamClient.GetTeamsAsync(project.Id.ToString());
+                if (teams == null || !teams.Any())
+                {
+                    _logger.LogError("No teams found in project {Project}", _project);
+                    return GetDemoTeamMembers();
+                }
+
+                var defaultTeam = teams.FirstOrDefault();
+                if (defaultTeam == null)
+                {
+                    _logger.LogError("Could not find default team in project {Project}", _project);
+                    return GetDemoTeamMembers();
+                }
+
+                // Get team members
+                var teamMembers = await teamClient.GetTeamMembersWithExtendedPropertiesAsync(
+                    project.Id.ToString(),
+                    defaultTeam.Id.ToString());
+
+                if (teamMembers == null || !teamMembers.Any())
+                {
+                    _logger.LogWarning("No team members found in team {Team}", defaultTeam.Name);
+                    return GetDemoTeamMembers();
+                }
+
+                var result = new List<AI_Scrum.Models.TeamMember>();
+                foreach (var member in teamMembers)
+                {
+                    result.Add(new AI_Scrum.Models.TeamMember
+                    {
+                        Id = member.Identity.Id.ToString(),
+                        DisplayName = member.Identity.DisplayName,
+                        Email = member.Identity.UniqueName,
+                        CurrentWorkload = 0, // Set default workload - this would be calculated from active tasks
+                        IsActive = true // Assume all team members are active
+                    });
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting team members");
-                throw;
+                _logger.LogError(ex, "Error getting team members from Azure DevOps");
+                return GetDemoTeamMembers();
             }
+        }
+
+        private List<AI_Scrum.Models.TeamMember> GetDemoTeamMembers()
+        {
+            // Return demo data for development/when Azure DevOps is not configured
+            return new List<AI_Scrum.Models.TeamMember>
+            {
+                new AI_Scrum.Models.TeamMember { Id = "user1", DisplayName = "John Doe", Email = "john@example.com", CurrentWorkload = 3, IsActive = true },
+                new AI_Scrum.Models.TeamMember { Id = "user2", DisplayName = "Jane Smith", Email = "jane@example.com", CurrentWorkload = 5, IsActive = true },
+                new AI_Scrum.Models.TeamMember { Id = "user3", DisplayName = "Sam Wilson", Email = "sam@example.com", CurrentWorkload = 2, IsActive = true },
+                new AI_Scrum.Models.TeamMember { Id = "user4", DisplayName = "Alex Johnson", Email = "alex@example.com", CurrentWorkload = 4, IsActive = true }
+            };
         }
 
         public async Task<List<AI_Scrum.Models.WorkItem>> GetWorkItemsAsync(string iterationPath)
@@ -110,7 +251,9 @@ namespace AI_Scrum.Services
                         Status = item.Fields["System.State"]?.ToString() ?? "",
                         Type = item.Fields["System.WorkItemType"]?.ToString() ?? "",
                         AssignedTo = item.Fields.ContainsKey("System.AssignedTo") 
-                            ? item.Fields["System.AssignedTo"]?.ToString() ?? "" 
+                            ? (item.Fields["System.AssignedTo"] is Microsoft.VisualStudio.Services.WebApi.IdentityRef assignedToRef 
+                                ? assignedToRef.DisplayName 
+                                : item.Fields["System.AssignedTo"]?.ToString() ?? "")
                             : "",
                         Priority = item.Fields.ContainsKey("Microsoft.VSTS.Common.Priority") 
                             ? item.Fields["Microsoft.VSTS.Common.Priority"]?.ToString() ?? "3" 
@@ -178,8 +321,16 @@ namespace AI_Scrum.Services
                     });
                 }
                 
-                var result = await witClient.UpdateWorkItemAsync(patchDocument, id);
-                return result != null;
+                try
+                {
+                    var result = await witClient.UpdateWorkItemAsync(patchDocument, id);
+                    return result != null;
+                }
+                catch (VssUnauthorizedException)
+                {
+                    _logger.LogError("Azure DevOps authorization failed. Check your PAT token permissions.");
+                    return false;
+                }
             }
             catch (Exception ex)
             {

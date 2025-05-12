@@ -40,20 +40,39 @@ namespace AI_Scrum.Services
                 _logger.LogInformation("Assigning task {TaskId} to {AssignedTo}", taskId, assignedTo);
                 
                 var teamMembers = await _azureDevOpsService.GetTeamMembersAsync();
-                var assignee = teamMembers.FirstOrDefault(m => m.Id == assignedTo);
+                
+                // Try to find the team member by ID or by DisplayName (for flexibility)
+                var assignee = teamMembers.FirstOrDefault(m => 
+                    m.Id == assignedTo || 
+                    m.DisplayName.Equals(assignedTo, StringComparison.OrdinalIgnoreCase));
                 
                 if (assignee == null)
                 {
                     _logger.LogWarning("Team member {AssignedTo} not found", assignedTo);
+                    
+                    // If team members list is empty and we have a valid name, create a dummy team member
+                    // This helps when using demo/test data
+                    if (!teamMembers.Any() && !string.IsNullOrEmpty(assignedTo))
+                    {
+                        _logger.LogInformation("Using fallback assignment with name {AssignedTo}", assignedTo);
+                        
+                        var taskUpdates = new Dictionary<string, object>
+                        {
+                            { "System.AssignedTo", assignedTo }
+                        };
+
+                        return await _azureDevOpsService.UpdateWorkItemAsync(taskId, taskUpdates);
+                    }
+                    
                     return false;
                 }
 
-                var updates = new Dictionary<string, object>
+                var assigneeUpdates = new Dictionary<string, object>
                 {
                     { "System.AssignedTo", assignee.DisplayName }
                 };
 
-                return await _azureDevOpsService.UpdateWorkItemAsync(taskId, updates);
+                return await _azureDevOpsService.UpdateWorkItemAsync(taskId, assigneeUpdates);
             }
             catch (Exception ex)
             {

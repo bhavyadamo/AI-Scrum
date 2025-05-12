@@ -17,11 +17,31 @@ namespace AI_Scrum.Controllers
             _azureDevOpsService = azureDevOpsService;
         }
 
+        [HttpGet("iteration-paths")]
+        public async Task<ActionResult<List<string>>> GetIterationPaths()
+        {
+            try
+            {
+                var iterationPaths = await _azureDevOpsService.GetIterationPathsAsync();
+                return Ok(iterationPaths);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Error retrieving iteration paths: {ex.Message}");
+            }
+        }
+
         [HttpGet]
         public async Task<ActionResult<List<WorkItem>>> GetTasks([FromQuery] string iterationPath)
         {
             try
             {
+                // Decode URL-encoded characters, especially backslashes
+                if (!string.IsNullOrEmpty(iterationPath))
+                {
+                    iterationPath = Uri.UnescapeDataString(iterationPath);
+                }
+                
                 var tasks = await _taskService.GetTasksAsync(iterationPath);
                 return Ok(tasks);
             }
@@ -82,6 +102,12 @@ namespace AI_Scrum.Controllers
         {
             try
             {
+                // Decode URL-encoded characters, especially backslashes
+                if (!string.IsNullOrEmpty(iterationPath))
+                {
+                    iterationPath = Uri.UnescapeDataString(iterationPath);
+                }
+                
                 var suggestions = await _taskService.GetAutoAssignSuggestionsAsync(iterationPath);
                 return Ok(suggestions);
             }

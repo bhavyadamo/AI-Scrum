@@ -3,17 +3,30 @@
     <div class="col-12">
       <div class="d-flex justify-content-between align-items-center">
         <h2 class="mb-0">Task Distribution</h2>
-        <button class="btn btn-primary" (click)="autoAssignTasks()" [disabled]="loading.autoAssign">
-          <i class="bi bi-magic"></i> 
-          <span *ngIf="!loading.autoAssign">Auto-Assign Tasks</span>
-          <span *ngIf="loading.autoAssign">
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            Assigning...
-          </span>
-        </button>
+        <div>
+          <!-- Iteration Path Selection -->
+          <div class="d-inline-block me-3">
+            <select class="form-select" [(ngModel)]="currentIterationPath" (change)="changeIterationPath(currentIterationPath)" [disabled]="loading.iterationPaths">
+              <option *ngFor="let path of iterationPaths" [value]="path">{{ path }}</option>
+            </select>
+            <div *ngIf="loading.iterationPaths" class="text-muted small mt-1">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Loading iteration paths...
+            </div>
+          </div>
+          <button class="btn btn-primary" (click)="autoAssignTasks()" [disabled]="loading.autoAssign">
+            <i class="bi bi-magic"></i> 
+            <span *ngIf="!loading.autoAssign">Auto-Assign Tasks</span>
+            <span *ngIf="loading.autoAssign">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Assigning...
+            </span>
+          </button>
+        </div>
       </div>
       <p class="text-muted mt-2">Manage and assign tasks for the current sprint</p>
       <div *ngIf="error.autoAssign" class="alert alert-danger">{{ error.autoAssign }}</div>
+      <div *ngIf="error.iterationPaths" class="alert alert-warning">{{ error.iterationPaths }}</div>
     </div>
   </div>
 
@@ -31,7 +44,7 @@
           <div *ngIf="error.tasks" class="alert alert-danger">{{ error.tasks }}</div>
 
           <div *ngIf="!loading.tasks && !error.tasks && tasks.length === 0" class="text-center py-4">
-            <p class="text-muted">No tasks found for the current sprint.</p>
+            <p class="text-muted">No tasks found for the current iteration path.</p>
           </div>
 
           <div *ngIf="!loading.tasks && !error.tasks && tasks.length > 0" class="table-responsive">
@@ -100,18 +113,32 @@
 
           <div *ngIf="error.members" class="alert alert-danger">{{ error.members }}</div>
 
-          <div *ngIf="!loading.members && !error.members && teamMembers.length === 0" class="text-center py-4">
-            <p class="text-muted">No team members found.</p>
+          <div *ngIf="!loading.members && !error.members && filteredTeamMembers.length === 0" class="text-center py-4">
+            <p class="text-muted">No team members found for the current iteration path.</p>
           </div>
 
-          <div *ngIf="!loading.members && !error.members && teamMembers.length > 0" class="row">
-            <div *ngFor="let member of teamMembers" class="col-md-3 col-sm-6 mb-3">
-              <div class="card team-member-card h-100">
-                <div class="card-body text-center">
+          <div *ngIf="!loading.members && !error.members && filteredTeamMembers.length > 0" class="row">
+            <div *ngFor="let member of filteredTeamMembers" class="col-md-3 col-sm-6 mb-3">
+              <div class="card team-member-card h-100" [ngClass]="{'bg-light': member.currentWorkload === 0}">
+                <div class="card-body">
                   <h5 class="card-title">{{ member.displayName }}</h5>
-                  <div class="workload-indicator mt-2" [ngClass]="getTeamMemberWorkloadClass(member.currentWorkload)">
-                    <span class="workload-label">Tasks: {{ member.currentWorkload }}</span>
-                    <div class="workload-bar" [style.width.%]="(member.currentWorkload / 10) * 100"></div>
+                  <div class="workload-stats mt-2">
+                    <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(member.currentWorkload)">
+                      {{ member.currentWorkload }} Tasks
+                    </span>
+                  </div>
+                  <div class="progress mt-2">
+                    <div class="progress-bar" 
+                         [ngClass]="getProgressBarClass(member.currentWorkload)"
+                         [style.width.%]="getWorkloadPercentage(member.currentWorkload)" 
+                         role="progressbar" 
+                         [attr.aria-valuenow]="member.currentWorkload" 
+                         aria-valuemin="0" 
+                         aria-valuemax="10">
+                    </div>
+                  </div>
+                  <div *ngIf="member.email" class="text-muted mt-2 small">
+                    <i class="bi bi-envelope"></i> {{ member.email }}
                   </div>
                 </div>
               </div>

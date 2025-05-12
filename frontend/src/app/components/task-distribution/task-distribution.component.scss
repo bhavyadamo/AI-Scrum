@@ -6,7 +6,7 @@
 
 .card-header {
   background-color: #f8f9fa;
-  border-bottom: 1px solid #eaeaea;
+  border-bottom: 1px solid rgba(0,0,0,0.125);
   padding: 12px 16px;
 }
 
@@ -20,20 +20,28 @@
 }
 
 .suggestion-box {
-  background-color: #f8f9ff;
-  padding: 4px 8px;
+  background-color: rgba(13, 110, 253, 0.05);
+  padding: 3px 6px;
   border-radius: 4px;
+  border-left: 2px solid #0d6efd;
   font-size: 0.8rem;
 }
 
 /* Team Member Cards */
 .team-member-card {
-  transition: transform 0.2s;
+  transition: all 0.3s ease;
   border-radius: 8px;
-}
-
-.team-member-card:hover {
-  transform: translateY(-5px);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+  }
+  
+  .card-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
 }
 
 /* Workload Indicators */
@@ -77,6 +85,23 @@
   background-color: #dc3545;
 }
 
+.workload-stats {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 0.5rem;
+  
+  .badge {
+    font-size: 0.8rem;
+    padding: 5px 10px;
+  }
+}
+
+.progress {
+  height: 8px;
+  background-color: #f0f0f0;
+}
+
 /* Modal customization */
 .modal-backdrop {
   opacity: 0.5;
@@ -85,4 +110,17 @@
 .modal-content {
   border-radius: 8px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Animations */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(13, 110, 253, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+  }
 } 

@@ -32,23 +32,35 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularApp", policy =>
     {
-        policy.WithOrigins("http://localhost:4200")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.WithOrigins(
+                "http://localhost:4200",
+                "http://localhost:5000",
+                "https://localhost:5001"
+            )
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials()
+            .WithExposedHeaders("Content-Disposition");
     });
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
+// Important: Apply CORS before any other middleware that might redirect or handle the response
+app.UseCors("AllowAngularApp");
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    // Do NOT use HTTPS redirection in Development
+}
+else
+{
+    // Only use HTTPS redirection in Production
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
-app.UseCors("AllowAngularApp");
 app.UseAuthorization();
 app.MapControllers();
 
