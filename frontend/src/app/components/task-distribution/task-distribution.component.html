@@ -121,20 +121,20 @@
 
           <div *ngIf="!loading.members && !error.members && filteredTeamMembers.length > 0" class="row">
             <div *ngFor="let member of filteredTeamMembers" class="col-md-3 col-sm-6 mb-3">
-              <div class="card team-member-card h-100" [ngClass]="{'bg-light': member.currentWorkload === 0}">
+              <div class="card team-member-card h-100" [ngClass]="{'bg-light': getTaskCount(member.displayName) === 0}">
                 <div class="card-body">
                   <h5 class="card-title">{{ member.displayName }}</h5>
                   <div class="workload-stats mt-2">
-                    <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(member.currentWorkload)">
-                      {{ member.currentWorkload }} Tasks
+                    <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(getTaskCount(member.displayName))">
+                      {{ getTaskCount(member.displayName) }} Tasks
                     </span>
                   </div>
                   <div class="progress mt-2">
                     <div class="progress-bar" 
-                        [ngClass]="getProgressBarClass(member.currentWorkload)"
-                        [style.width.%]="getWorkloadPercentage(member.currentWorkload)" 
+                        [ngClass]="getProgressBarClass(getTaskCount(member.displayName))"
+                        [style.width.%]="getWorkloadPercentage(getTaskCount(member.displayName))" 
                         role="progressbar" 
-                        [attr.aria-valuenow]="member.currentWorkload" 
+                        [attr.aria-valuenow]="getTaskCount(member.displayName)" 
                         aria-valuemin="0" 
                         aria-valuemax="10">
                     </div>
@@ -192,8 +192,8 @@
                 <label class="form-check-label w-100" [attr.for]="'member-' + member.id">
                   <div class="d-flex justify-content-between align-items-center">
                     <span class="member-name">{{ member.displayName }}</span>
-                    <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(member.currentWorkload)">
-                      {{ member.currentWorkload }} Tasks
+                    <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(getTaskCount(member.displayName))">
+                      {{ getTaskCount(member.displayName) }} Tasks
                     </span>
                   </div>
                 </label>

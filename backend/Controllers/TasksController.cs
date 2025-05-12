@@ -166,6 +166,26 @@ namespace AI_Scrum.Controllers
                 return StatusCode(500, $"Error auto-assigning tasks: {ex.Message}");
             }
         }
+
+        [HttpGet("team-member-task-counts")]
+        public async Task<ActionResult<Dictionary<string, int>>> GetTeamMemberTaskCounts([FromQuery] string iterationPath)
+        {
+            try
+            {
+                // Decode URL-encoded characters, especially backslashes
+                if (!string.IsNullOrEmpty(iterationPath))
+                {
+                    iterationPath = Uri.UnescapeDataString(iterationPath);
+                }
+                
+                var taskCounts = await _taskService.GetTeamMemberTaskCountsAsync(iterationPath);
+                return Ok(taskCounts);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Error retrieving team member task counts: {ex.Message}");
+            }
+        }
     }
 
     public class AssignTaskRequest

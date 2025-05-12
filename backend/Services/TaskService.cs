@@ -257,5 +257,41 @@ namespace AI_Scrum.Services
                 throw;
             }
         }
+
+        public async Task<Dictionary<string, int>> GetTeamMemberTaskCountsAsync(string iterationPath)
+        {
+            try
+            {
+                _logger.LogInformation("Getting task counts for team members in iteration {IterationPath}", iterationPath);
+                
+                // Get all tasks for the iteration
+                var tasks = await _azureDevOpsService.GetWorkItemsAsync(iterationPath);
+                
+                // Count tasks per team member
+                var taskCounts = new Dictionary<string, int>();
+                
+                foreach (var task in tasks)
+                {
+                    if (!string.IsNullOrEmpty(task.AssignedTo))
+                    {
+                        if (taskCounts.ContainsKey(task.AssignedTo))
+                        {
+                            taskCounts[task.AssignedTo]++;
+                        }
+                        else
+                        {
+                            taskCounts[task.AssignedTo] = 1;
+                        }
+                    }
+                }
+                
+                return taskCounts;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting task counts for team members in iteration {IterationPath}", iterationPath);
+                return new Dictionary<string, int>();
+            }
+        }
     }
 } 

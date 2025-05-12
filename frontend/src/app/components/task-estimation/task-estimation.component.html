@@ -1,6 +1,145 @@
-<div class="container">
-  <h2>ML-Based Task Estimation</h2>
-  <div class="alert alert-info">
-    This feature is currently under development. Check back soon for machine learning-powered task time estimation.
+<div class="container-fluid p-4">
+  <div class="row mb-4">
+    <div class="col-12">
+      <h2 class="mb-0">ML-Based Task Estimation</h2>
+      <p class="text-muted mt-2">Estimate task duration using machine learning predictions based on historical data</p>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <!-- Task Estimation Form -->
+      <div class="card">
+        <div class="card-header">
+          <h4 class="card-title mb-0">Task Details</h4>
+        </div>
+        <div class="card-body">
+          <form [formGroup]="estimationForm" (ngSubmit)="estimateTaskTime()">
+            <!-- Task Title -->
+            <div class="mb-3">
+              <label for="taskTitle" class="form-label">Task Title</label>
+              <input 
+                type="text" 
+                class="form-control" 
+                id="taskTitle" 
+                formControlName="title"
+                placeholder="Enter task title">
+              <div *ngIf="estimationForm.get('title')?.invalid && estimationForm.get('title')?.touched" class="text-danger mt-1">
+                <small *ngIf="estimationForm.get('title')?.errors?.['required']">Title is required</small>
+                <small *ngIf="estimationForm.get('title')?.errors?.['minlength']">Title must be at least 5 characters</small>
+              </div>
+            </div>
+
+            <!-- Task Type -->
+            <div class="mb-3">
+              <label for="taskType" class="form-label">Task Type</label>
+              <select class="form-select" id="taskType" formControlName="type">
+                <option *ngFor="let type of taskTypes" [value]="type">{{ type }}</option>
+              </select>
+            </div>
+
+            <!-- Assignee -->
+            <div class="mb-3">
+              <label for="assignee" class="form-label">Assignee</label>
+              <select class="form-select" id="assignee" formControlName="assignee">
+                <option value="">-- Unassigned --</option>
+                <option *ngFor="let member of teamMembers" [value]="member">{{ member }}</option>
+              </select>
+            </div>
+
+            <!-- Complexity -->
+            <div class="mb-3">
+              <label class="form-label">Complexity</label>
+              <div class="d-flex">
+                <div class="form-check me-3" *ngFor="let level of complexityLevels">
+                  <input 
+                    class="form-check-input" 
+                    type="radio" 
+                    [id]="'complexity-' + level.toLowerCase()" 
+                    [value]="level" 
+                    formControlName="complexity">
+                  <label class="form-check-label" [for]="'complexity-' + level.toLowerCase()">
+                    {{ level }}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex justify-content-between mt-4">
+              <button type="button" class="btn btn-secondary" (click)="resetForm()">
+                <i class="bi bi-arrow-counterclockwise"></i> Reset
+              </button>
+              <button type="submit" class="btn btn-primary" [disabled]="loading">
+                <span *ngIf="!loading">
+                  <i class="bi bi-stopwatch"></i> Estimate Time
+                </span>
+                <span *ngIf="loading">
+                  <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  Estimating...
+                </span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <!-- Error Display -->
+      <div *ngIf="error" class="alert alert-danger mb-4">
+        {{ error }}
+      </div>
+
+      <!-- Estimation Results -->
+      <div *ngIf="showResult && estimationResult" class="card">
+        <div class="card-header bg-primary text-white">
+          <h4 class="card-title mb-0">Estimation Results</h4>
+        </div>
+        <div class="card-body">
+          <div class="mb-4 text-center">
+            <h2 class="display-4 mb-0">{{ estimationResult.estimatedHours }} hours</h2>
+            <p class="text-muted">Estimated time to complete the task</p>
+          </div>
+
+          <div class="mb-4">
+            <h5>Prediction Confidence</h5>
+            <div class="progress">
+              <div 
+                class="progress-bar" 
+                [ngClass]="getConfidenceClass(estimationResult.confidenceScore)"
+                [style.width.%]="estimationResult.confidenceScore * 100" 
+                role="progressbar" 
+                [attr.aria-valuenow]="estimationResult.confidenceScore * 100" 
+                aria-valuemin="0" 
+                aria-valuemax="100">
+                {{ formatConfidence(estimationResult.confidenceScore) }}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h5>Factors Considered</h5>
+            <ul class="list-group">
+              <li class="list-group-item" *ngFor="let factor of estimationResult.factors">
+                {{ factor }}
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div class="card-footer text-muted small">
+          <i class="bi bi-info-circle"></i> These estimates are based on machine learning models analyzing historical task data.
+        </div>
+      </div>
+
+      <!-- Placeholder when no result is shown -->
+      <div *ngIf="!showResult && !error" class="card bg-light">
+        <div class="card-body text-center p-5">
+          <i class="bi bi-graph-up display-1 text-muted"></i>
+          <h4 class="mt-3">Task Time Prediction</h4>
+          <p class="text-muted">Fill in the task details and click "Estimate Time" to get an ML-based time estimate</p>
+        </div>
+      </div>
+    </div>
   </div>
 </div> 

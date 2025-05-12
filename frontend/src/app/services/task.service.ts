@@ -135,6 +135,23 @@ export class TaskService {
   }
 
   /**
+   * Get task counts for each team member in a given iteration
+   * @param iterationPath The iteration path to get task counts for
+   * @returns Observable of team member names to task count mapping
+   */
+  getTeamMemberTaskCounts(iterationPath: string): Observable<Record<string, number>> {
+    // Manually encode the iterationPath to ensure backslashes are correctly encoded
+    const encodedIterationPath = encodeURIComponent(iterationPath);
+    const params = new HttpParams().set('iterationPath', encodedIterationPath);
+
+    return this.http.get<Record<string, number>>(`${this.apiUrl}/team-member-task-counts`, { params })
+      .pipe(
+        retry(1),
+        catchError(error => this.handleError(error, 'fetching team member task counts'))
+      );
+  }
+
+  /**
    * Generic error handler for HTTP requests
    * @param error The HTTP error response
    * @param operation The operation that was being performed

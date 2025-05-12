@@ -18,6 +18,7 @@ export class TaskDistributionComponent implements OnInit {
   selectedMember: string = ''; // Added for member selection in modal
   currentIterationPath: string = 'Techoil\\2.3.23'; // Default value
   iterationPaths: string[] = []; // Will be loaded from API
+  teamMemberTaskCounts: Record<string, number> = {}; // Added for task counts
   
   // Convert simple boolean to object with specific loading states
   loading: { 
@@ -26,12 +27,14 @@ export class TaskDistributionComponent implements OnInit {
     assign: boolean; 
     autoAssign: boolean;
     iterationPaths: boolean;
+    taskCounts: boolean; // Added for task counts loading
   } = {
     tasks: false,
     members: false,
     assign: false,
     autoAssign: false,
-    iterationPaths: false
+    iterationPaths: false,
+    taskCounts: false // Added for task counts loading
   };
   
   // Convert simple string to object with specific error states
@@ -41,12 +44,14 @@ export class TaskDistributionComponent implements OnInit {
     assign: string | null; 
     autoAssign: string | null;
     iterationPaths: string | null;
+    taskCounts: string | null; // Added for task counts errors
   } = {
     tasks: null,
     members: null,
     assign: null,
     autoAssign: null,
-    iterationPaths: null
+    iterationPaths: null,
+    taskCounts: null // Added for task counts errors
   };
 
   constructor(
@@ -148,6 +153,9 @@ export class TaskDistributionComponent implements OnInit {
         console.log('Loaded team members:', this.teamMembers);
         this.loading.members = false;
         
+        // Load team member task counts after loading team members
+        this.loadTeamMemberTaskCounts();
+        
         // If tasks are already loaded, update workload
         if (this.tasks.length > 0) {
           this.updateTeamWorkload();
@@ -170,6 +178,36 @@ export class TaskDistributionComponent implements OnInit {
         ];
         this.filteredTeamMembers = [...this.teamMembers];
         console.log('Using fallback team members:', this.teamMembers);
+        
+        // Try to load task counts even if team members loading fails
+        this.loadTeamMemberTaskCounts();
+      }
+    });
+  }
+
+  /**
+   * Load task counts for each team member from the API
+   */
+  loadTeamMemberTaskCounts(): void {
+    this.loading.taskCounts = true;
+    this.error.taskCounts = null;
+    
+    this.taskService.getTeamMemberTaskCounts(this.currentIterationPath).subscribe({
+      next: (counts) => {
+        this.teamMemberTaskCounts = counts;
+        this.loading.taskCounts = false;
+        console.log('Loaded team member task counts:', this.teamMemberTaskCounts);
+        
+        // Update the team members with their task counts
+        this.updateTeamWorkload();
+      },
+      error: (err) => {
+        console.error('Error loading team member task counts:', err);
+        this.error.taskCounts = `Failed to load task counts: ${err.message}`;
+        this.loading.taskCounts = false;
+        
+        // Fall back to counting tasks manually
+        this.updateTeamWorkload();
       }
     });
   }
@@ -179,62 +217,46 @@ export class TaskDistributionComponent implements OnInit {
    */
   updateTeamWorkload(): void {
     console.log('Updating team workload');
-    console.log('Team members before update:', JSON.stringify(this.teamMembers));
-    console.log('Tasks for workload calculation:', JSON.stringify(this.tasks));
     
     // Reset all workloads to 0
     this.teamMembers.forEach(member => {
       member.currentWorkload = 0;
     });
     
-    // Count assignments for each team member
-    this.tasks.forEach(task => {
-      if (task.assignedTo) {
-        // Normalize the assignedTo value by removing leading/trailing spaces and converting to lowercase
-        const normalizedAssignedTo = task.assignedTo.trim().toLowerCase();
+    // If we have task counts from the API, use those
+    if (Object.keys(this.teamMemberTaskCounts).length > 0) {
+      this.teamMembers.forEach(member => {
+        // Try to find this member in the task counts
+        const counts = Object.entries(this.teamMemberTaskCounts).find(
+          ([name, _]) => name.toLowerCase() === member.displayName.toLowerCase()
+        );
         
-        // Try to find matching team member with more flexible matching
-        let matchedMember = this.teamMembers.find(member => {
-          // Try exact match on displayName
-          if (member.displayName.toLowerCase() === normalizedAssignedTo) {
-            return true;
-          }
-          
-          // Try match by ID
-          if (member.id.toLowerCase() === normalizedAssignedTo) {
-            return true;
-          }
-          
-          // Try partial name match (e.g., "John Doe" should match "John")
-          if (normalizedAssignedTo.includes(member.displayName.toLowerCase()) || 
-              member.displayName.toLowerCase().includes(normalizedAssignedTo)) {
-            return true;
-          }
-          
-          // Try matching by email (username part)
-          if (member.email && normalizedAssignedTo.includes(member.email.split('@')[0].toLowerCase())) {
-            return true;
-          }
-          
-          return false;
-        });
-        
-        // If a member was found, increment their workload
-        if (matchedMember) {
-          console.log(`Task "${task.title}" (ID: ${task.id}) matched to team member: ${matchedMember.displayName}`);
-          matchedMember.currentWorkload += 1;
-        } else {
-          console.log(`No team member found for task assignment: "${task.assignedTo}" (Task ID: ${task.id}, Title: ${task.title})`);
+        if (counts) {
+          member.currentWorkload = counts[1]; // Set the count from the API
         }
-      }
-    });
+      });
+    } else {
+      // Fall back to counting from tasks array
+      this.tasks.forEach(task => {
+        if (task.assignedTo) {
+          // Normalize the assignedTo value
+          const normalizedAssignedTo = task.assignedTo.trim().toLowerCase();
+          
+          // Find matching team member
+          const matchedMember = this.teamMembers.find(member => 
+            member.displayName.toLowerCase() === normalizedAssignedTo
+          );
+          
+          if (matchedMember) {
+            matchedMember.currentWorkload++;
+          }
+        }
+      });
+    }
     
-    // Include all team members in the filtered list, even those without tasks
-    // This ensures we always show team members even if they don't have tasks
+    // Update filtered team members
     this.filteredTeamMembers = [...this.teamMembers];
-    
-    console.log('Updated team members workload:', JSON.stringify(this.teamMembers));
-    console.log('Filtered team members:', JSON.stringify(this.filteredTeamMembers));
+    console.log('Updated team workload:', this.teamMembers);
   }
 
   /**
@@ -271,8 +293,9 @@ export class TaskDistributionComponent implements OnInit {
         this.cancelAssign();
         // Show success message (could be implemented with a toast/snackbar service)
         this.showSuccessMessage('Task assigned successfully');
-        // Reload tasks to reflect changes
+        // Reload tasks and task counts to reflect changes
         this.loadTasks();
+        this.loadTeamMemberTaskCounts();
       },
       error: (err) => {
         console.error('Error assigning task:', err);
@@ -307,7 +330,9 @@ export class TaskDistributionComponent implements OnInit {
     
     this.taskService.autoAssignTasks(this.currentIterationPath).subscribe({
       next: () => {
-        this.loadTasks(); // Reload tasks to reflect changes
+        // Reload tasks and task counts to reflect changes
+        this.loadTasks();
+        this.loadTeamMemberTaskCounts();
         this.loading.autoAssign = false;
       },
       error: (err) => {
@@ -346,6 +371,9 @@ export class TaskDistributionComponent implements OnInit {
             this.filteredTeamMembers = response as TeamMember[];
           }
           this.loading.members = false;
+          
+          // Load task counts after team members are loaded
+          this.loadTeamMemberTaskCountsForModal(task.iterationPath);
         },
         error: (err) => {
           console.error(`Error loading team members for iteration path ${task.iterationPath}:`, err);
@@ -358,7 +386,32 @@ export class TaskDistributionComponent implements OnInit {
       if (this.filteredTeamMembers.length === 0 && !this.loading.members) {
         this.loadTeamMembers();
       }
+      
+      // Make sure we have task counts loaded
+      if (Object.keys(this.teamMemberTaskCounts).length === 0) {
+        this.loadTeamMemberTaskCounts();
+      }
     }
+  }
+
+  /**
+   * Load task counts specifically for the modal dialogue
+   * This ensures counts are up-to-date when assigning tasks
+   */
+  loadTeamMemberTaskCountsForModal(iterationPath: string): void {
+    this.loading.taskCounts = true;
+    
+    this.taskService.getTeamMemberTaskCounts(iterationPath).subscribe({
+      next: (counts) => {
+        this.teamMemberTaskCounts = counts;
+        this.loading.taskCounts = false;
+        console.log('Loaded team member task counts for modal:', this.teamMemberTaskCounts);
+      },
+      error: (err) => {
+        console.error('Error loading team member task counts for modal:', err);
+        this.loading.taskCounts = false;
+      }
+    });
   }
 
   cancelAssign(): void {
@@ -473,12 +526,15 @@ export class TaskDistributionComponent implements OnInit {
     console.log(`Changing iteration path to: ${iterationPath}`);
     this.currentIterationPath = iterationPath;
     
-    // Reset selected task if any
-    this.selectedTask = null;
+    // Reset data
+    this.tasks = [];
+    this.teamMembers = [];
+    this.filteredTeamMembers = [];
+    this.teamMemberTaskCounts = {};
     
-    // Load tasks and team members for the new iteration path
+    // Load new data
     this.loadTasks();
-    this.loadTeamMembers(); // Now this will pass the current iteration path
+    this.loadTeamMembers();
   }
 
   /**
@@ -493,5 +549,36 @@ export class TaskDistributionComponent implements OnInit {
     const selectedTaskId = this.selectedTask;
     const task = this.tasks.find(t => t.id === selectedTaskId);
     return task ? task.title : 'Unknown Task';
+  }
+
+  /**
+   * Get the task count for a specific team member
+   * @param memberName The name of the team member
+   * @returns The number of tasks assigned to that member
+   */
+  getTaskCount(memberName: string): number {
+    // First check if we have task counts from the API
+    if (Object.keys(this.teamMemberTaskCounts).length > 0) {
+      // Look for an exact match
+      if (this.teamMemberTaskCounts[memberName] !== undefined) {
+        return this.teamMemberTaskCounts[memberName];
+      }
+      
+      // Try case-insensitive match
+      const key = Object.keys(this.teamMemberTaskCounts).find(
+        k => k.toLowerCase() === memberName.toLowerCase()
+      );
+      
+      if (key) {
+        return this.teamMemberTaskCounts[key];
+      }
+    }
+    
+    // Fall back to the currentWorkload from team members
+    const member = this.teamMembers.find(
+      m => m.displayName.toLowerCase() === memberName.toLowerCase()
+    );
+    
+    return member ? member.currentWorkload : 0;
   }
 }

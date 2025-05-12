@@ -5,4 +5,54 @@ h2 {
 
 .container {
   padding-top: 1.5rem;
+}
+
+.display-4 {
+  font-weight: 600;
+}
+
+.card {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.progress {
+  height: 25px;
+  font-weight: 600;
+}
+
+.list-group-item {
+  &:first-child {
+    font-weight: 500;
+  }
+}
+
+.bg-light {
+  opacity: 0.8;
+  
+  i.bi-graph-up {
+    opacity: 0.5;
+  }
+}
+
+.form-check {
+  cursor: pointer;
+  
+  .form-check-input, .form-check-label {
+    cursor: pointer;
+  }
+}
+
+// Add some animation effects
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.alert, .card {
+  animation: fadeIn 0.3s ease-out;
 } 
