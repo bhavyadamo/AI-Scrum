@@ -118,6 +118,24 @@ export class TaskService {
   }
 
   /**
+   * Get auto-assign suggestions for tasks in the given iteration, filtered for specific team members
+   * @param iterationPath The iteration path to get suggestions for
+   * @param teamMembers List of team member names to consider for assignment
+   * @returns Observable of task ID to suggested assignee mapping
+   */
+  getAutoAssignSuggestionsForTeam(iterationPath: string, teamMembers: string[]): Observable<Record<string, string>> {
+    // Ensure the iterationPath is properly encoded
+    const params = new HttpParams().set('iterationPath', encodeURIComponent(iterationPath));
+    
+    return this.http.post<Record<string, string>>(`${this.apiUrl}/auto-assign-suggestions/team`, {
+      iterationPath: iterationPath,
+      teamMembers: teamMembers
+    }).pipe(
+      catchError(error => this.handleError(error, 'getting team-specific auto-assign suggestions'))
+    );
+  }
+
+  /**
    * Auto-assign tasks in the given iteration
    * @param iterationPath The iteration path containing tasks to auto-assign
    * @returns Observable of the assignment result

@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace AI_Scrum.Models
 {
     public class WorkItem
@@ -29,9 +31,10 @@ namespace AI_Scrum.Models
     {
         public string Id { get; set; } = string.Empty;
         public string DisplayName { get; set; } = string.Empty;
+        public string UniqueName { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public int CurrentWorkload { get; set; }
         public bool IsActive { get; set; } = true;
-        public string UniqueName { get; set; } = string.Empty;
+        public string? Team { get; set; }
     }
 } 

@@ -6,6 +6,7 @@ namespace AI_Scrum.Services
     {
         Task<List<string>> GetIterationPathsAsync();
         Task<List<TeamMember>> GetTeamMembersAsync(string iterationPath = null);
+        Task<List<TeamMember>> GetTeamMembersByTeamAsync(string teamName, string iterationPath = null);
         Task<List<WorkItem>> GetWorkItemsAsync(string iterationPath);
         Task<bool> UpdateWorkItemAsync(int id, Dictionary<string, object> updates);
         Task<SprintOverview> GetCurrentSprintAsync();

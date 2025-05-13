@@ -198,13 +198,12 @@ namespace AI_Scrum.Services
                             member.CurrentWorkload = workItems.Count(wi => 
                                 !string.IsNullOrEmpty(wi.AssignedTo) && 
                                 (wi.AssignedTo.Equals(member.DisplayName, StringComparison.OrdinalIgnoreCase) || 
-                                 wi.AssignedTo.Contains(member.Email, StringComparison.OrdinalIgnoreCase) ||
-                                 wi.AssignedTo.Contains(member.UniqueName, StringComparison.OrdinalIgnoreCase)));
+                                 wi.AssignedTo.Equals(member.UniqueName, StringComparison.OrdinalIgnoreCase)));
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Error calculating workload for team members in iteration {IterationPath}", iterationPath);
+                        _logger.LogError(ex, "Error calculating workload for team members");
                     }
                 }
 
@@ -213,6 +212,136 @@ namespace AI_Scrum.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting team members from Azure DevOps");
+                return GetDemoTeamMembers(iterationPath);
+            }
+        }
+
+        public async Task<List<AI_Scrum.Models.TeamMember>> GetTeamMembersByTeamAsync(string teamName, string iterationPath = null)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_pat) || string.IsNullOrEmpty(_organization) || string.IsNullOrEmpty(_project))
+                {
+                    _logger.LogWarning("Azure DevOps credentials not configured. Returning demo data.");
+                    return GetDemoTeamMembers(iterationPath);
+                }
+
+                using var connection = GetConnection();
+                var projectClient = connection.GetClient<ProjectHttpClient>();
+                var teamClient = connection.GetClient<TeamHttpClient>();
+                var witClient = connection.GetClient<WorkItemTrackingHttpClient>();
+
+                // Get project
+                var project = await projectClient.GetProject(_project);
+                if (project == null)
+                {
+                    _logger.LogError("Project {Project} not found", _project);
+                    return GetDemoTeamMembers(iterationPath);
+                }
+
+                // Get all teams and filter by name
+                var teams = await teamClient.GetTeamsAsync(project.Id.ToString());
+                if (teams == null || !teams.Any())
+                {
+                    _logger.LogError("No teams found in project {Project}", _project);
+                    return GetDemoTeamMembers(iterationPath);
+                }
+
+                // Find the specified team or RND team
+                var targetTeam = teams.FirstOrDefault(t => 
+                    t.Name.Equals(teamName, StringComparison.OrdinalIgnoreCase) || 
+                    (teamName.Equals("RND", StringComparison.OrdinalIgnoreCase) && 
+                     (t.Name.Contains("RND", StringComparison.OrdinalIgnoreCase) || 
+                      t.Name.Contains("R&D", StringComparison.OrdinalIgnoreCase) || 
+                      t.Name.Contains("Research", StringComparison.OrdinalIgnoreCase))));
+
+                if (targetTeam == null)
+                {
+                    _logger.LogWarning("Could not find team {TeamName} in project {Project}", teamName, _project);
+                    return GetDemoTeamMembers(iterationPath);
+                }
+
+                _logger.LogInformation("Found team {TeamName} with ID {TeamId}", targetTeam.Name, targetTeam.Id);
+
+                // Get team members
+                var teamMembers = await teamClient.GetTeamMembersWithExtendedPropertiesAsync(
+                    project.Id.ToString(),
+                    targetTeam.Id.ToString());
+
+                if (teamMembers == null || !teamMembers.Any())
+                {
+                    _logger.LogWarning("No team members found in team {Team}", targetTeam.Name);
+                    return GetDemoTeamMembers(iterationPath);
+                }
+
+                var result = new List<AI_Scrum.Models.TeamMember>();
+                foreach (var member in teamMembers)
+                {
+                    // Since we're already filtering by team and the Azure DevOps API call returns members of that team,
+                    // we can simplify the R&D check to just use the team name
+                    bool includeMember = true;
+
+                    // If specifically requesting R&D team members but the team name doesn't explicitly indicate R&D,
+                    // perform additional checks on the member's properties
+                    if (teamName.Equals("RND", StringComparison.OrdinalIgnoreCase) && 
+                        !targetTeam.Name.Contains("RND", StringComparison.OrdinalIgnoreCase) && 
+                        !targetTeam.Name.Contains("R&D", StringComparison.OrdinalIgnoreCase) && 
+                        !targetTeam.Name.Contains("Research", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Check description field or other properties if available
+                        // For simplicity, we'll just log that we may need additional filtering
+                        _logger.LogWarning("Team {TeamName} doesn't have R&D in its name, additional filtering may be required", 
+                            targetTeam.Name);
+                        
+                        // Add additional member-specific checks here if needed
+                        // For example, check if member's description contains R&D related keywords
+                        // includeMember = CheckIfMemberIsRnD(member);
+                    }
+                    
+                    if (includeMember)
+                    {
+                        result.Add(new AI_Scrum.Models.TeamMember
+                        {
+                            Id = member.Identity.Id.ToString(),
+                            DisplayName = member.Identity.DisplayName,
+                            Email = member.Identity.UniqueName,
+                            CurrentWorkload = 0, // Set default workload - this would be calculated from active tasks
+                            IsActive = true, // Assume all team members are active
+                            UniqueName = member.Identity.UniqueName,
+                            Team = targetTeam.Name // Add team information
+                        });
+                    }
+                }
+
+                // If we have an iteration path, calculate workload for each member based on tasks in that iteration
+                if (!string.IsNullOrEmpty(iterationPath))
+                {
+                    try
+                    {
+                        // Get work items for the iteration
+                        var workItems = await GetWorkItemsAsync(iterationPath);
+                        
+                        // Calculate workload for each team member
+                        foreach (var member in result)
+                        {
+                            member.CurrentWorkload = workItems.Count(wi => 
+                                !string.IsNullOrEmpty(wi.AssignedTo) && 
+                                (wi.AssignedTo.Equals(member.DisplayName, StringComparison.OrdinalIgnoreCase) || 
+                                 wi.AssignedTo.Equals(member.UniqueName, StringComparison.OrdinalIgnoreCase)));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error calculating workload for team members");
+                    }
+                }
+
+                _logger.LogInformation("Found {Count} team members in team {Team}", result.Count, targetTeam.Name);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting team members from Azure DevOps for team {TeamName}", teamName);
                 return GetDemoTeamMembers(iterationPath);
             }
         }

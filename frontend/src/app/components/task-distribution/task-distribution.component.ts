@@ -11,6 +11,7 @@ import { forkJoin } from 'rxjs';
 })
 export class TaskDistributionComponent implements OnInit {
   tasks: WorkItem[] = [];
+  filteredTasks: WorkItem[] = [];
   teamMembers: TeamMember[] = [];
   filteredTeamMembers: TeamMember[] = []; // New property for filtered team members
   selectedTaskId: number | null = null;
@@ -124,9 +125,10 @@ export class TaskDistributionComponent implements OnInit {
         this.loading.tasks = false;
         console.log(`Loaded ${tasks.length} tasks for iteration path ${this.currentIterationPath}`);
         
-        // After loading tasks, update team workload
+        // After loading tasks, update team workload and filter tasks
         if (this.teamMembers.length > 0) {
           this.updateTeamWorkload();
+          this.filterTasksByRnDTeamMembers();
         }
       },
       error: (err) => {
@@ -141,27 +143,15 @@ export class TaskDistributionComponent implements OnInit {
     this.loading.members = true;
     this.error.members = null;
 
-    // Use the taskService directly to get team members by iteration path
-    this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
-      next: (response) => {
-        // Check if response is an array of strings (names) or TeamMember objects
-        if (response.length > 0 && typeof response[0] === 'string') {
-          // It's an array of strings, convert to TeamMember objects
-          const names = response as string[];
-          this.teamMembers = names.map((name, index) => ({
-            id: `member-${index}`,
-            displayName: name,
-            uniqueName: '',
-            currentWorkload: 0,
-            isActive: true,
-            email: ''
-          }));
-        } else {
-          // It's already an array of TeamMember objects
-          this.teamMembers = response as TeamMember[];
-        }
-        console.log('Loaded team members:', this.teamMembers);
+    // Use the taskService directly to get team members by RND team
+    this.teamService.getTeamMembersByTeam('RND', this.currentIterationPath).subscribe({
+      next: (teamMembers) => {
+        this.teamMembers = teamMembers;
+        console.log('Loaded RND team members:', this.teamMembers);
         this.loading.members = false;
+        
+        // Filter out non-R&D team members
+        this.filterRnDTeamMembers();
         
         // Load team member task counts after loading team members
         this.loadTeamMemberTaskCounts();
@@ -171,28 +161,89 @@ export class TaskDistributionComponent implements OnInit {
           this.updateTeamWorkload();
         } else {
           // If no tasks are loaded yet, still show the team members
-          this.filteredTeamMembers = [...this.teamMembers];
-          console.log('No tasks loaded yet, showing all team members');
+          console.log('No tasks loaded yet, showing filtered RND team members');
         }
       },
       error: (err) => {
-        console.error('Error loading team members:', err);
-        this.error.members = `Failed to load team members: ${err.message}`;
-        this.loading.members = false;
+        console.error('Error loading RND team members:', err);
         
-        // Add fallback team members if API call fails
-        this.teamMembers = [
-          { id: '1', displayName: 'Ranjith Kumar S', email: 'ranjithkumar.s@inatech.onmicrosoft.com', currentWorkload: 0, isActive: true, uniqueName: 'ranjithkumar.s' },
-          { id: '2', displayName: 'Rabirai Madhavan', email: 'rabiraj.m@example.com', currentWorkload: 0, isActive: true, uniqueName: 'rabiraj.m' },
-          { id: '3', displayName: 'Dhinakarraj Sivakumar', email: 'dhivakarraj.s@example.com', currentWorkload: 0, isActive: true, uniqueName: 'dhivakarraj.s' }
-        ];
-        this.filteredTeamMembers = [...this.teamMembers];
-        console.log('Using fallback team members:', this.teamMembers);
-        
-        // Try to load task counts even if team members loading fails
-        this.loadTeamMemberTaskCounts();
+        // Fallback to regular team members if RND team fails
+        this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
+          next: (response) => {
+            // Check if response is an array of strings (names) or TeamMember objects
+            if (response.length > 0 && typeof response[0] === 'string') {
+              // It's an array of strings, convert to TeamMember objects
+              const names = response as string[];
+              this.teamMembers = names.map((name, index) => ({
+                id: `member-${index}`,
+                displayName: name,
+                uniqueName: '',
+                currentWorkload: 0,
+                isActive: true,
+                email: ''
+              }));
+            } else {
+              // It's already an array of TeamMember objects
+              this.teamMembers = response as TeamMember[];
+            }
+            console.log('Loaded fallback team members:', this.teamMembers);
+            this.loading.members = false;
+            
+            // Filter out non-R&D team members even with fallback approach
+            this.filterRnDTeamMembers();
+            
+            // Load team member task counts after loading team members
+            this.loadTeamMemberTaskCounts();
+            
+            // If tasks are already loaded, update workload
+            if (this.tasks.length > 0) {
+              this.updateTeamWorkload();
+            }
+          },
+          error: (innerErr) => {
+            console.error('Error loading fallback team members:', innerErr);
+            this.error.members = `Failed to load team members: ${err.message}`;
+            this.loading.members = false;
+            
+            // Add fallback team members if API call fails
+            this.teamMembers = [
+              { id: '1', displayName: 'Ranjith Kumar S', email: 'ranjithkumar.s@inatech.onmicrosoft.com', currentWorkload: 0, isActive: true, uniqueName: 'ranjithkumar.s', team: 'R&D' },
+              { id: '2', displayName: 'Rabirai Madhavan', email: 'rabiraj.m@example.com', currentWorkload: 0, isActive: true, uniqueName: 'rabiraj.m', team: 'R&D' },
+              { id: '3', displayName: 'Dhinakarraj Sivakumar', email: 'dhivakarraj.s@example.com', currentWorkload: 0, isActive: true, uniqueName: 'dhivakarraj.s', team: 'R&D' }
+            ];
+            this.filterRnDTeamMembers();
+            console.log('Using fallback team members:', this.teamMembers);
+            
+            // Try to load task counts even if team members loading fails
+            this.loadTeamMemberTaskCounts();
+          }
+        });
       }
     });
+  }
+
+  /**
+   * Filter team members to only include R&D team members
+   */
+  filterRnDTeamMembers(): void {
+    // Filter out members that don't have an R&D-related team property
+    this.filteredTeamMembers = this.teamMembers.filter(member => {
+      // If member has a team property and it contains R&D-related terms
+      if (member.team) {
+        return member.team.toLowerCase().includes('r&d') || 
+               member.team.toLowerCase().includes('rnd') || 
+               member.team.toLowerCase().includes('research');
+      }
+      
+      // Log members without team info
+      console.log(`Team member without team info: ${member.displayName}`);
+      
+      // If no team property, default to including the member (backend should have already filtered)
+      return true;
+    });
+    
+    // Log the results
+    console.log(`Filtered ${this.teamMembers.length} team members down to ${this.filteredTeamMembers.length} R&D members`);
   }
 
   /**
@@ -228,7 +279,7 @@ export class TaskDistributionComponent implements OnInit {
   updateTeamWorkload(): void {
     console.log('Updating team workload');
     
-    // Reset all workloads to 0
+    // Reset all workloads to 0 for all team members
     this.teamMembers.forEach(member => {
       member.currentWorkload = 0;
     });
@@ -264,9 +315,13 @@ export class TaskDistributionComponent implements OnInit {
       });
     }
     
-    // Update filtered team members
-    this.filteredTeamMembers = [...this.teamMembers];
-    console.log('Updated team workload:', this.teamMembers);
+    // Re-apply R&D filter to ensure we only show R&D team members
+    this.filterRnDTeamMembers();
+    
+    // Also filter tasks to match R&D team members
+    this.filterTasksByRnDTeamMembers();
+    
+    console.log('Updated team workload for filtered members:', this.filteredTeamMembers);
   }
 
   /**
@@ -357,29 +412,71 @@ export class TaskDistributionComponent implements OnInit {
         
         console.log('All Dev-New tasks:', allDevNewTasks);
         
-        // Then, get suggestions for which tasks should be reassigned
-        this.taskService.getAutoAssignSuggestions(this.currentIterationPath).subscribe({
-          next: (suggestions) => {
-            this.assignPreviewSuggestions = suggestions;
-            console.log('Got suggestions:', suggestions);
+        // Get R&D team members for this iteration path
+        this.teamService.getTeamMembersByTeam('RND', this.currentIterationPath).subscribe({
+          next: (rndMembers) => {
+            console.log('Got R&D team members for auto-assign:', rndMembers);
             
-            // Filter tasks to only include those in the suggestions (tasks to be reassigned)
-            const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
-            this.assignPreviewTasks = allDevNewTasks.filter(task => 
-              suggestedTaskIds.includes(task.id)
-            );
+            // Extract the list of R&D team member names for the API
+            const rndMemberNames = rndMembers.map(m => m.displayName);
             
-            console.log('Filtered tasks to be reassigned:', this.assignPreviewTasks);
-            this.loading.preview = false;
+            // Then, get suggestions for which tasks should be reassigned
+            // Pass the R&D team member names to the API for filtering
+            this.taskService.getAutoAssignSuggestionsForTeam(this.currentIterationPath, rndMemberNames).subscribe({
+              next: (suggestions: Record<string, string>) => {
+                this.assignPreviewSuggestions = suggestions;
+                console.log('Got suggestions for R&D members:', suggestions);
+                
+                // Filter tasks to only include those in the suggestions (tasks to be reassigned)
+                const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
+                this.assignPreviewTasks = allDevNewTasks.filter(task => 
+                  suggestedTaskIds.includes(task.id)
+                );
+                
+                console.log('Filtered tasks to be reassigned:', this.assignPreviewTasks);
+                this.loading.preview = false;
+              },
+              error: (err: Error) => {
+                // Fall back to the standard auto-assign if the R&D-specific endpoint fails
+                console.error('Failed to get R&D-specific suggestions, falling back to standard auto-assign:', err);
+                this.getStandardAutoAssignSuggestions(allDevNewTasks);
+              }
+            });
           },
-          error: (err) => {
-            this.error.preview = `Failed to load auto-assign suggestions: ${err.message}`;
-            this.loading.preview = false;
+          error: (err: Error) => {
+            console.error('Error loading R&D team members for auto-assign:', err);
+            // Fall back to the standard auto-assign if R&D team member loading fails
+            this.getStandardAutoAssignSuggestions(allDevNewTasks);
           }
         });
       },
       error: (err) => {
         this.error.preview = `Failed to load tasks: ${err.message}`;
+        this.loading.preview = false;
+      }
+    });
+  }
+  
+  /**
+   * Fallback method to get standard auto-assign suggestions if R&D-specific fails
+   */
+  private getStandardAutoAssignSuggestions(allDevNewTasks: WorkItem[]): void {
+    this.taskService.getAutoAssignSuggestions(this.currentIterationPath).subscribe({
+      next: (suggestions) => {
+        this.assignPreviewSuggestions = suggestions;
+        console.log('Got standard suggestions (fallback):', suggestions);
+        
+        // Filter tasks to only include those in the suggestions (tasks to be reassigned)
+        const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
+        this.assignPreviewTasks = allDevNewTasks.filter(task => 
+          suggestedTaskIds.includes(task.id)
+        );
+        
+        console.log('Filtered tasks to be reassigned (fallback):', this.assignPreviewTasks);
+        this.loading.preview = false;
+      },
+      error: (err) => {
+        this.error.preview = `Failed to load auto-assign suggestions: ${err.message}`;
         this.loading.preview = false;
       }
     });
@@ -495,38 +592,79 @@ export class TaskDistributionComponent implements OnInit {
     this.selectedMember = '';
     this.error.assign = null;
 
-    // Get the iteration path for this specific task
-    const task = this.tasks.find(t => t.id === taskId);
+    // Get the iteration path for this specific task - first try filtered tasks
+    let task = this.filteredTasks.find(t => t.id === taskId);
+    
+    // If not found, check all tasks (in case this is accessing a non-filtered task)
+    if (!task) {
+      task = this.tasks.find(t => t.id === taskId);
+    }
+    
     if (task && task.iterationPath) {
-      // Fetch team members specifically for this task's iteration path
+      // Fetch R&D team members specifically for this task's iteration path
       this.loading.members = true;
-      this.taskService.getTeamMembers(task.iterationPath).subscribe({
-        next: (response) => {
-          // Check if response is an array of strings (names) or TeamMember objects
-          if (response.length > 0 && typeof response[0] === 'string') {
-            // It's an array of strings, convert to TeamMember objects
-            const names = response as string[];
-            this.filteredTeamMembers = names.map((name, index) => ({
-              id: `member-${index}`,
-              displayName: name,
-              uniqueName: '',
-              currentWorkload: 0,
-              isActive: true,
-              email: ''
-            }));
-          } else {
-            // It's already an array of TeamMember objects
-            this.filteredTeamMembers = response as TeamMember[];
-          }
+      
+      this.teamService.getTeamMembersByTeam('RND', task.iterationPath).subscribe({
+        next: (members) => {
+          this.teamMembers = members;
           this.loading.members = false;
           
+          // Filter to R&D team members
+          this.filterRnDTeamMembers();
+          
           // Load task counts after team members are loaded
-          this.loadTeamMemberTaskCountsForModal(task.iterationPath);
+          if (task && task.iterationPath) {
+            this.loadTeamMemberTaskCountsForModal(task.iterationPath);
+          }
         },
         error: (err) => {
-          console.error(`Error loading team members for iteration path ${task.iterationPath}:`, err);
+          console.error(`Error loading R&D team members for iteration path ${task?.iterationPath ?? 'unknown'}:`, err);
           this.error.members = `Failed to load team members: ${err.message}`;
           this.loading.members = false;
+          
+          // Fallback to regular team members if R&D team fetch fails
+          if (task && task.iterationPath) {
+            this.taskService.getTeamMembers(task.iterationPath).subscribe({
+              next: (response) => {
+                if (Array.isArray(response) && response.length > 0) {
+                  if (typeof response[0] === 'string') {
+                    // String array response
+                    const names = response as string[];
+                    this.teamMembers = names.map((name, index) => ({
+                      id: `member-${index}`,
+                      displayName: name,
+                      uniqueName: '',
+                      currentWorkload: 0,
+                      isActive: true,
+                      email: ''
+                    }));
+                  } else {
+                    // TeamMember array response
+                    this.teamMembers = response as TeamMember[];
+                  }
+                } else {
+                  this.teamMembers = [];
+                }
+                
+                this.loading.members = false;
+                
+                // Filter to R&D team members even with fallback response
+                this.filterRnDTeamMembers();
+                
+                if (task && task.iterationPath) {
+                  this.loadTeamMemberTaskCountsForModal(task.iterationPath);
+                }
+              },
+              error: (fallbackErr) => {
+                console.error(`Error loading fallback team members:`, fallbackErr);
+                this.error.members = `Failed to load team members: ${fallbackErr.message}`;
+                this.loading.members = false;
+              }
+            });
+          } else {
+            console.error('Cannot load team members: task or iterationPath is undefined');
+            this.loading.members = false;
+          }
         }
       });
     } else {
@@ -676,6 +814,7 @@ export class TaskDistributionComponent implements OnInit {
     
     // Reset data
     this.tasks = [];
+    this.filteredTasks = [];
     this.teamMembers = [];
     this.filteredTeamMembers = [];
     this.teamMemberTaskCounts = {};
@@ -695,7 +834,14 @@ export class TaskDistributionComponent implements OnInit {
     }
     
     const selectedTaskId = this.selectedTask;
-    const task = this.tasks.find(t => t.id === selectedTaskId);
+    // First try to find in filtered tasks
+    let task = this.filteredTasks.find(t => t.id === selectedTaskId);
+    
+    // If not found (could be a non-R&D task), look in all tasks
+    if (!task) {
+      task = this.tasks.find(t => t.id === selectedTaskId);
+    }
+    
     return task ? task.title : 'Unknown Task';
   }
 
@@ -735,7 +881,7 @@ export class TaskDistributionComponent implements OnInit {
    * @returns List of Dev-New tasks
    */
   getDevNewTasks(): WorkItem[] {
-    return this.tasks.filter(task => 
+    return this.filteredTasks.filter(task => 
       task.status && task.status.toLowerCase() === 'dev-new'
     );
   }
@@ -745,7 +891,7 @@ export class TaskDistributionComponent implements OnInit {
    * @returns List of unassigned Dev-New tasks
    */
   getUnassignedDevNewTasks(): WorkItem[] {
-    return this.tasks.filter(task => 
+    return this.filteredTasks.filter(task => 
       task.status && 
       task.status.toLowerCase() === 'dev-new' && 
       !task.assignedTo
@@ -759,7 +905,7 @@ export class TaskDistributionComponent implements OnInit {
   getStatusDistribution(): {status: string, count: number}[] {
     const statusCounts: {[key: string]: number} = {};
     
-    this.tasks.forEach(task => {
+    this.filteredTasks.forEach(task => {
       const status = task.status || 'Unknown';
       statusCounts[status] = (statusCounts[status] || 0) + 1;
     });
@@ -768,5 +914,35 @@ export class TaskDistributionComponent implements OnInit {
       status, 
       count
     })).sort((a, b) => b.count - a.count);
+  }
+
+  /**
+   * Filter tasks to only show those assigned to R&D team members
+   */
+  filterTasksByRnDTeamMembers(): void {
+    // First ensure we have filtered team members
+    if (this.filteredTeamMembers.length === 0) {
+      this.filterRnDTeamMembers();
+    }
+    
+    // Get a list of display names of filtered R&D team members
+    const rndMemberNames = this.filteredTeamMembers.map(member => 
+      member.displayName.toLowerCase()
+    );
+    
+    console.log('R&D team member names for task filtering:', rndMemberNames);
+    
+    // Filter tasks to only include those assigned to R&D members and unassigned tasks
+    this.filteredTasks = this.tasks.filter(task => {
+      // Always include unassigned tasks
+      if (!task.assignedTo) {
+        return true;
+      }
+      
+      // Check if task is assigned to an R&D team member
+      return rndMemberNames.includes(task.assignedTo.toLowerCase());
+    });
+    
+    console.log(`Filtered ${this.tasks.length} tasks down to ${this.filteredTasks.length} tasks assigned to R&D members or unassigned`);
   }
 }

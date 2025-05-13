@@ -64,7 +64,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr *ngFor="let task of tasks">
+                <tr *ngFor="let task of filteredTasks">
                   <td>{{ task.id }}</td>
                   <td>{{ task.title }}</td>
                   <td>
@@ -264,7 +264,8 @@
                 <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#debugAccordion">
                   <div class="accordion-body">
                     <h6>Total Tasks: {{ tasks.length }}</h6>
-                    <div *ngIf="tasks.length > 0">
+                    <h6>Total Tasks: {{ filteredTasks.length }} (filtered from {{ tasks.length }} total)</h6>
+                    <div *ngIf="filteredTasks.length > 0">
                       <h6>Status Distribution:</h6>
                       <ul>
                         <li *ngFor="let status of getStatusDistribution()">

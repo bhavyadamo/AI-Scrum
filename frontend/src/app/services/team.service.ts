@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, retry, map } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
@@ -19,6 +19,27 @@ export class TeamService {
    */
   getTeamMembers(): Observable<TeamMember[]> {
     return this.http.get<TeamMember[]>(this.apiUrl)
+      .pipe(
+        retry(1), // Retry once on failure
+        catchError(this.handleError),
+        map(response => this.processTeamMembersResponse(response))
+      );
+  }
+
+  /**
+   * Fetches team members from a specific team
+   * @param teamName The name of the team to fetch members from (e.g., "RND")
+   * @param iterationPath Optional iteration path to filter by
+   * @returns Observable of TeamMember array
+   */
+  getTeamMembersByTeam(teamName: string, iterationPath?: string): Observable<TeamMember[]> {
+    let params = new HttpParams().set('teamName', teamName);
+    
+    if (iterationPath) {
+      params = params.set('iterationPath', iterationPath);
+    }
+    
+    return this.http.get<TeamMember[]>(this.apiUrl, { params })
       .pipe(
         retry(1), // Retry once on failure
         catchError(this.handleError),
@@ -68,7 +89,8 @@ export class TeamService {
       // Add missing properties with default values
       currentWorkload: member.currentWorkload || 0,
       isActive: member.isActive !== undefined ? member.isActive : true,
-      email: member.email || member.uniqueName || ''
+      email: member.email || member.uniqueName || '',
+      team: member.team || ''
     }));
   }
 } 

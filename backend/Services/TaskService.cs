@@ -476,7 +476,7 @@ namespace AI_Scrum.Services
                 return new Dictionary<string, string>();
             }
         }
-        
+
         private string BuildAssignmentLogicExplanation(List<WorkItem> devTasks, List<string> completeStatuses, 
             List<string> activeStatuses, int taskCount, double avgTaskCount)
         {
@@ -516,6 +516,62 @@ namespace AI_Scrum.Services
             else
             {
                 return $"high workload ({activeTasks}/{Math.Round(avgTaskCount, 1)} avg)";
+            }
+        }
+
+        public async Task<Dictionary<string, string>> GetAutoAssignSuggestionsForTeamAsync(string iterationPath, List<string> teamMembers)
+        {
+            try
+            {
+                _logger.LogInformation("Getting auto-assign suggestions for R&D team members in iteration {IterationPath}", iterationPath);
+                
+                // First get all suggestions using the existing method
+                var allSuggestions = await GetAutoAssignSuggestionsAsync(iterationPath);
+                
+                if (allSuggestions.Count == 0 || teamMembers == null || !teamMembers.Any())
+                {
+                    // No suggestions or no team members to filter by
+                    return new Dictionary<string, string>();
+                }
+                
+                // Create a case-insensitive lookup of team member names
+                var teamMemberLookup = new HashSet<string>(
+                    teamMembers.Select(name => name.ToLower()),
+                    StringComparer.OrdinalIgnoreCase
+                );
+                
+                _logger.LogInformation("Filtering {AllCount} suggestions for {TeamCount} R&D team members", 
+                    allSuggestions.Count, teamMemberLookup.Count);
+                
+                // Filter suggestions to only include R&D team members as assignees
+                var filteredSuggestions = new Dictionary<string, string>();
+                
+                foreach (var suggestion in allSuggestions)
+                {
+                    // Extract just the developer name from the suggestion value
+                    // Format is typically "Name (explanation)"
+                    string developerName = suggestion.Value;
+                    if (suggestion.Value.Contains("("))
+                    {
+                        developerName = suggestion.Value.Substring(0, suggestion.Value.IndexOf('(')).Trim();
+                    }
+                    
+                    // Check if this developer is in our R&D team members list
+                    if (teamMemberLookup.Contains(developerName.ToLower()))
+                    {
+                        filteredSuggestions[suggestion.Key] = suggestion.Value;
+                    }
+                }
+                
+                _logger.LogInformation("Filtered to {FilteredCount} suggestions for R&D team members", 
+                    filteredSuggestions.Count);
+                
+                return filteredSuggestions;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting auto-assign suggestions for R&D team in iteration {IterationPath}", iterationPath);
+                return new Dictionary<string, string>();
             }
         }
 

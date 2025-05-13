@@ -145,7 +145,7 @@ namespace AI_Scrum.Controllers
         }
 
         [HttpGet("team-members")]
-        public async Task<ActionResult<List<string>>> GetTeamMembers([FromQuery] string iterationPath = null)
+        public async Task<ActionResult<List<string>>> GetTeamMembers([FromQuery] string iterationPath = null, [FromQuery] string teamName = null)
         {
             try
             {
@@ -153,6 +153,18 @@ namespace AI_Scrum.Controllers
                 if (!string.IsNullOrEmpty(iterationPath))
                 {
                     iterationPath = Uri.UnescapeDataString(iterationPath);
+                }
+                
+                // If team name is specified, get team members by team
+                if (!string.IsNullOrEmpty(teamName))
+                {
+                    _logger.LogInformation("Getting team members for team {TeamName} and iteration path {IterationPath}", 
+                        teamName, iterationPath ?? "not specified");
+                        
+                    var teamMembers = await _azureDevOpsService.GetTeamMembersByTeamAsync(teamName, iterationPath);
+                    
+                    // Return full TeamMember objects instead of just display names
+                    return Ok(teamMembers);
                 }
                 
                 // Check if we need to get team members from tasks or from Azure DevOps
@@ -207,6 +219,51 @@ namespace AI_Scrum.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, $"Error retrieving auto-assign suggestions: {ex.Message}");
+            }
+        }
+
+        [HttpPost("auto-assign-suggestions/team")]
+        public async Task<ActionResult<Dictionary<string, string>>> GetAutoAssignSuggestionsForTeam([FromBody] TeamAutoAssignRequest request)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+
+                // Decode URL-encoded characters, especially backslashes
+                if (!string.IsNullOrEmpty(request.IterationPath))
+                {
+                    request.IterationPath = Uri.UnescapeDataString(request.IterationPath);
+                }
+                
+                _logger.LogInformation("Getting auto-assign suggestions for team members in iteration path {IterationPath}", 
+                    request.IterationPath);
+                
+                // If no team members provided, return empty suggestions
+                if (request.TeamMembers == null || !request.TeamMembers.Any())
+                {
+                    _logger.LogWarning("No team members provided for team-specific auto-assign suggestions");
+                    return Ok(new Dictionary<string, string>());
+                }
+                
+                // Log the team members for debugging
+                _logger.LogInformation("Filtering auto-assign for {Count} team members: {TeamMembers}", 
+                    request.TeamMembers.Count, string.Join(", ", request.TeamMembers));
+                
+                // Get auto-assign suggestions restricted to the provided team members
+                var suggestions = await _taskService.GetAutoAssignSuggestionsForTeamAsync(
+                    request.IterationPath, 
+                    request.TeamMembers
+                );
+                
+                return Ok(suggestions);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving team-specific auto-assign suggestions");
+                return StatusCode(500, $"Error retrieving team-specific auto-assign suggestions: {ex.Message}");
             }
         }
 
@@ -272,5 +329,11 @@ namespace AI_Scrum.Controllers
     public class AutoAssignRequest
     {
         public string IterationPath { get; set; } = string.Empty;
+    }
+
+    public class TeamAutoAssignRequest
+    {
+        public string IterationPath { get; set; } = string.Empty;
+        public List<string> TeamMembers { get; set; } = new List<string>();
     }
 } 

@@ -83,10 +83,11 @@ export interface TeamMember {
   id: string;
   displayName: string;
   uniqueName: string;
-  imageUrl?: string;
+  email: string;
   currentWorkload: number;
-  isActive?: boolean;
-  email?: string;
+  isActive: boolean;
+  imageUrl?: string;
+  team?: string;
 }
 
 /**
