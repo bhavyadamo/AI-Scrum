@@ -12,6 +12,17 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "AI Scrum API", Version = "v1" });
 });
 
+// Add Authentication
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultScheme = "DefaultAuthScheme";
+    options.DefaultChallengeScheme = "DefaultAuthScheme";
+})
+.AddCookie("DefaultAuthScheme", options =>
+{
+    options.Cookie.Name = "AIScrumAuth";
+});
+
 // Register Services
 builder.Services.AddScoped<ISprintService, SprintService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
@@ -61,6 +72,7 @@ else
     app.UseHttpsRedirection();
 }
 
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

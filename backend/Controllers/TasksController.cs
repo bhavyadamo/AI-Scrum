@@ -1,6 +1,13 @@
 using AI_Scrum.Models;
 using AI_Scrum.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 
 namespace AI_Scrum.Controllers
 {
@@ -10,11 +17,15 @@ namespace AI_Scrum.Controllers
     {
         private readonly ITaskService _taskService;
         private readonly IAzureDevOpsService _azureDevOpsService;
+        private readonly IConfiguration _configuration;
+        private readonly ILogger<TasksController> _logger;
 
-        public TasksController(ITaskService taskService, IAzureDevOpsService azureDevOpsService)
+        public TasksController(ITaskService taskService, IAzureDevOpsService azureDevOpsService, IConfiguration configuration, ILogger<TasksController> logger)
         {
             _taskService = taskService;
             _azureDevOpsService = azureDevOpsService;
+            _configuration = configuration;
+            _logger = logger;
         }
 
         [HttpGet("iteration-paths")]
@@ -51,35 +62,85 @@ namespace AI_Scrum.Controllers
             }
         }
 
-        [HttpGet("{taskId}")]
-        public async Task<ActionResult<WorkItemDetails>> GetTaskDetails(int taskId)
-        {
-            try
-            {
-                var taskDetails = await _taskService.GetTaskDetailsAsync(taskId);
-                return Ok(taskDetails);
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, $"Error retrieving task details: {ex.Message}");
-            }
-        }
-
         [HttpPost("assign")]
         public async Task<ActionResult> AssignTask([FromBody] AssignTaskRequest request)
         {
             try
             {
-                var result = await _taskService.AssignTaskAsync(request.TaskId, request.AssignedTo);
-                if (result)
+                if (!ModelState.IsValid)
                 {
-                    return Ok(new { message = "Task assigned successfully" });
+                    return BadRequest(ModelState);
                 }
-                return BadRequest(new { message = "Failed to assign task" });
+
+                // Get Azure DevOps configuration
+                var organization = _configuration["AzureDevOps:Organization"];
+                var project = _configuration["AzureDevOps:Project"];
+                var pat = _configuration["AzureDevOps:PAT"];
+                
+                if (string.IsNullOrEmpty(organization) || string.IsNullOrEmpty(project) || string.IsNullOrEmpty(pat))
+                {
+                    _logger.LogError("Azure DevOps configuration is missing");
+                    return StatusCode(500, new { message = "Azure DevOps configuration is missing" });
+                }
+
+                // Create HttpClient
+                using var client = new HttpClient();
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Basic", 
+                    Convert.ToBase64String(System.Text.Encoding.ASCII.GetBytes($":{pat}"))
+                );
+
+                // Prepare the API URL
+                var apiUrl = $"https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/{request.TaskId}?api-version=6.0";
+
+                // Prepare the JSON patch document
+                var patchDocument = new[]
+                {
+                    new
+                    {
+                        op = "add",
+                        path = "/fields/System.AssignedTo",
+                        value = request.AssignedTo
+                    }
+                };
+
+                // Create the request
+                var content = new StringContent(
+                    System.Text.Json.JsonSerializer.Serialize(patchDocument),
+                    System.Text.Encoding.UTF8,
+                    "application/json-patch+json"
+                );
+
+                // Send the request
+                var response = await client.PatchAsync(apiUrl, content);
+
+                // Check the response
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation($"Task {request.TaskId} assigned to {request.AssignedTo} successfully");
+                    
+                    // If we have a local database or cache, we should update it here
+                    await _taskService.AssignTaskAsync(request.TaskId, request.AssignedTo);
+                    
+                    return Ok(new { success = true, message = "Task assigned successfully" });
+                }
+                else
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogError($"Failed to assign task {request.TaskId}. Status: {response.StatusCode}. Error: {errorContent}");
+                    
+                    return StatusCode((int)response.StatusCode, new { 
+                        success = false, 
+                        message = "Failed to assign task in Azure DevOps",
+                        details = errorContent
+                    });
+                }
             }
             catch (Exception ex)
             {
-                return StatusCode(500, $"Error assigning task: {ex.Message}");
+                _logger.LogError(ex, $"Error assigning task {request.TaskId} to {request.AssignedTo}");
+                return StatusCode(500, new { success = false, message = $"An error occurred: {ex.Message}" });
             }
         }
 
@@ -184,6 +245,20 @@ namespace AI_Scrum.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, $"Error retrieving team member task counts: {ex.Message}");
+            }
+        }
+
+        [HttpGet("{taskId}")]
+        public async Task<ActionResult<WorkItemDetails>> GetTaskDetails(int taskId)
+        {
+            try
+            {
+                var taskDetails = await _taskService.GetTaskDetailsAsync(taskId);
+                return Ok(taskDetails);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Error retrieving task details: {ex.Message}");
             }
         }
     }

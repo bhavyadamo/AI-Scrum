@@ -79,7 +79,7 @@ namespace AI_Scrum.Models
     {
         public AzureDevOpsSettings AzureDevOps { get; set; } = new AzureDevOpsSettings();
         public AISettings AI { get; set; } = new AISettings();
-        public List<UserRole> Users { get; set; } = new List<UserRole>();
+        public List<UserRoleSettings> Users { get; set; } = new List<UserRoleSettings>();
     }
 
     public class AzureDevOpsSettings
@@ -98,7 +98,7 @@ namespace AI_Scrum.Models
         public string EstimationModelEndpoint { get; set; } = string.Empty;
     }
 
-    public class UserRole
+    public class UserRoleSettings
     {
         public string Email { get; set; } = string.Empty;
         public string Role { get; set; } = "Member"; // Admin or Member

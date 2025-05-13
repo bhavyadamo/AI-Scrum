@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using AI_Scrum.Services;
 
 namespace AI_Scrum.Backend
 {
@@ -7,8 +8,9 @@ namespace AI_Scrum.Backend
         public void ConfigureServices(IServiceCollection services)
         {
             // Register services for dependency injection
-            services.AddScoped<ISettingsService, SettingsService>();
-            services.AddScoped<IRecommendationService, RecommendationService>();
+            services.AddScoped<ITaskService, TaskService>();
+            services.AddScoped<IAzureDevOpsService, AzureDevOpsService>();
+            services.AddScoped<ITaskEstimationService, TaskEstimationService>();
         }
     }
 } 
