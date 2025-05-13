@@ -1,6 +1,7 @@
 /* Navbar component styles */
 .navbar-brand {
   font-weight: 600;
+  color: white !important;
   
   .brand-highlight {
     color: #5e72e4;
@@ -14,14 +15,17 @@
     .nav-link {
       padding: 0.5rem 1rem;
       border-radius: 0.25rem;
+      color: white !important;
       
       &:hover {
-        background-color: rgba(0, 0, 0, 0.05);
+        background-color: rgba(255, 255, 255, 0.1);
+        color: white !important;
       }
       
       &.active {
-        background-color: rgba(94, 114, 228, 0.1);
-        color: #5e72e4;
+        background-color: rgba(255, 255, 255, 0.2);
+        color: white !important;
+        font-weight: 500;
       }
     }
   }

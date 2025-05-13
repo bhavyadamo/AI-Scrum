@@ -1,0 +1,152 @@
+<div class="container-fluid p-4">
+  <div class="row mb-4">
+    <div class="col-12">
+      <h2>AI Task Auto-Assignment</h2>
+      <p class="text-muted">Automatically assign "Dev-New" tasks to the most suitable developers based on past performance.</p>
+      
+      <!-- Error alerts -->
+      <div *ngIf="error.tasks" class="alert alert-danger">{{ error.tasks }}</div>
+      <div *ngIf="error.suggestions" class="alert alert-danger">{{ error.suggestions }}</div>
+      <div *ngIf="error.assign" class="alert alert-danger">{{ error.assign }}</div>
+      
+      <!-- Success message -->
+      <div *ngIf="assignmentSuccess" class="alert alert-success">
+        <i class="bi bi-check-circle me-2"></i>
+        Tasks successfully assigned!
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading spinner -->
+  <div *ngIf="loading.tasks || loading.suggestions" class="row">
+    <div class="col-12 text-center py-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-2">{{ loading.tasks ? 'Loading tasks...' : 'Analyzing developer performance...' }}</p>
+    </div>
+  </div>
+
+  <!-- No tasks message -->
+  <div *ngIf="!loading.tasks && !loading.suggestions && tasks.length === 0" class="row">
+    <div class="col-12 text-center py-5">
+      <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        No "Dev-New" tasks available for assignment.
+      </div>
+    </div>
+  </div>
+
+  <!-- Tasks with auto-assign suggestions -->
+  <div *ngIf="!loading.tasks && !loading.suggestions && tasks.length > 0" class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <h4 class="mb-0">Tasks Ready for Assignment</h4>
+          
+          <!-- Bulk assign button -->
+          <button 
+            class="btn btn-light" 
+            [disabled]="loading.assign || bulkAssignDisabled()"
+            (click)="confirmAndAssignAll()">
+            <i class="bi bi-magic me-2"></i>
+            <span *ngIf="!loading.assign">Confirm & Assign All</span>
+            <span *ngIf="loading.assign" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="row mb-3">
+            <div class="col-12">
+              <div class="alert alert-primary">
+                <strong><i class="bi bi-info-circle me-2"></i>Preview:</strong> Review the AI-suggested assignments below before confirming.
+              </div>
+            </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Type</th>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Suggested Assignee</th>
+                  <th>Assignment Logic</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let task of tasks">
+                  <td>{{ task.id }}</td>
+                  <td>
+                    <span class="badge bg-info text-dark">{{ task.type }}</span>
+                  </td>
+                  <td>{{ task.title }}</td>
+                  <td>
+                    <span class="badge bg-secondary">{{ task.status }}</span>
+                  </td>
+                  <td>
+                    <ng-container *ngIf="autoAssignSuggestions[task.id]">
+                      <div class="d-flex align-items-center">
+                        <span class="badge bg-success me-2">AI Pick</span>
+                        <strong>{{ extractDeveloperName(autoAssignSuggestions[task.id]) }}</strong>
+                      </div>
+                    </ng-container>
+                    <span *ngIf="!autoAssignSuggestions[task.id]" class="text-muted">No suggestion available</span>
+                  </td>
+                  <td>
+                    <span *ngIf="autoAssignSuggestions[task.id]" class="text-muted small">
+                      {{ extractLogicExplanation(autoAssignSuggestions[task.id]) }}
+                    </span>
+                  </td>
+                  <td>
+                    <button 
+                      *ngIf="autoAssignSuggestions[task.id]"
+                      class="btn btn-primary btn-sm" 
+                      [disabled]="loading.assign"
+                      (click)="assignTask(task.id, autoAssignSuggestions[task.id])">
+                      <i class="bi bi-person-check me-1"></i>
+                      <span *ngIf="!loading.assign">Confirm & Assign</span>
+                      <span *ngIf="loading.assign" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                    </button>
+                    <button 
+                      *ngIf="!autoAssignSuggestions[task.id]"
+                      class="btn btn-secondary btn-sm" 
+                      disabled>
+                      <i class="bi bi-person-x me-1"></i>
+                      No Recommendation
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <!-- Assignment Logic Legend -->
+          <div class="mt-4">
+            <h5>Assignment Logic Explanation:</h5>
+            <ul class="list-group">
+              <li class="list-group-item">
+                <i class="bi bi-trophy text-warning me-2"></i>
+                <strong>Past Performance</strong> - Developers who completed similar tasks recently
+              </li>
+              <li class="list-group-item">
+                <i class="bi bi-speedometer2 text-info me-2"></i>
+                <strong>Active Load</strong> - Developers with the least number of active tasks
+              </li>
+              <li class="list-group-item">
+                <i class="bi bi-check-circle text-success me-2"></i>
+                <strong>Recent Completion</strong> - Developers who recently completed tasks and have no active tasks
+              </li>
+              <li class="list-group-item">
+                <i class="bi bi-person-plus text-primary me-2"></i>
+                <strong>Fallback</strong> - If no match from history, assign to developer with least total task count
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

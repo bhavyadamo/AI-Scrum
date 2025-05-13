@@ -1,0 +1,101 @@
+[
+  {
+    "id": 54993,
+    "title": "Performance issue on month closure process",
+    "priority": "3",
+    "assignedTo": "",
+    "status": "Dev-New",
+    "type": "Bug",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 58865,
+    "title": "Invoice flag is not update properly while raise the invoice",
+    "priority": "4",
+    "assignedTo": "",
+    "status": "Dev-New",
+    "type": "Bug",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 59894,
+    "title": "Due date calculation is NOT same in Invoice Popup and Invoice details screen",
+    "priority": "2",
+    "assignedTo": "",
+    "status": "Dev-New",
+    "type": "Bug",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 60407,
+    "title": "Trade screen - Confirmed contract are not available in TC Id of the trade screen",
+    "priority": "2",
+    "assignedTo": "Suresh GM",
+    "status": "Dev-New",
+    "type": "Bug",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 60938,
+    "title": "Save button in the exchange rate popup is still active even after the Final invoice has been Posted.",
+    "priority": "2",
+    "assignedTo": "Kalakriti Kamalakkannan",
+    "status": "Dev-New",
+    "type": "Bug",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 61177,
+    "title": "Deleted Journal Id should not be displayed in Future Trade",
+    "priority": "2",
+    "assignedTo": "",
+    "status": "Dev-New",
+    "type": "Bug",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 61442,
+    "title": "BLAuditLog for BOL & DeliveriesList_Should not display non modified fields in the Audit Log",
+    "priority": "2",
+    "assignedTo": "",
+    "status": "Dev-New",
+    "type": "Bug",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 48044,
+    "title": "Add Custom fields in the Recap page",
+    "priority": "2",
+    "assignedTo": "Bhavya Damodharan",
+    "status": "Code Review",
+    "type": "Requirement",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  },
+  {
+    "id": 50407,
+    "title": "PDI : To include External reference changes to Audit log in Masters Screen # 78549",
+    "priority": "2",
+    "assignedTo": "Suresh GM",
+    "status": "Proposed",
+    "type": "Requirement",
+    "iterationPath": "Techoil\\2.3.23",
+    "autoAssignSuggestion": "",
+    "closedDate": null
+  }
+] 

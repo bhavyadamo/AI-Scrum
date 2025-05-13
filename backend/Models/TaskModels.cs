@@ -10,6 +10,7 @@ namespace AI_Scrum.Models
         public string Type { get; set; } = string.Empty;
         public string IterationPath { get; set; } = string.Empty;
         public string AutoAssignSuggestion { get; set; } = string.Empty;
+        public DateTime? ClosedDate { get; set; } = null;
     }
 
     public class WorkItemDetails : WorkItem

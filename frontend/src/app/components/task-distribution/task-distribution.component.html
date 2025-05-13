@@ -14,9 +14,13 @@
               Loading iteration paths...
             </div>
           </div>
-          <button class="btn btn-primary" (click)="autoAssignTasks()" [disabled]="loading.autoAssign">
+          <button class="btn btn-primary" (click)="showAutoAssignPreview()" [disabled]="loading.autoAssign || loading.preview">
             <i class="bi bi-magic"></i> 
-            <span *ngIf="!loading.autoAssign">Auto-Assign Tasks</span>
+            <span *ngIf="!loading.autoAssign && !loading.preview">Auto-Assign Tasks</span>
+            <span *ngIf="loading.preview">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Loading Preview...
+            </span>
             <span *ngIf="loading.autoAssign">
               <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
               Assigning...
@@ -86,7 +90,7 @@
                     </span>
                   </td>
                   <td>
-                    <button class="btn btn-sm btn-outline-primary me-1" (click)="openAssignModal(task.id)">
+                    <button class="btn btn-primary btn-sm" (click)="openAssignModal(task.id)">
                       <i class="bi bi-person-plus"></i> Assign
                     </button>
                   </td>
@@ -215,4 +219,186 @@
     </div>
   </div>
   <div class="modal-backdrop fade show" *ngIf="selectedTask !== null"></div>
+  
+  <!-- Auto-Assign Preview Modal -->
+  <div class="modal" [ngClass]="{'show': showingPreview}" [style.display]="showingPreview ? 'block' : 'none'" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title">
+            <i class="bi bi-magic me-2"></i> Auto-Assign Preview
+          </h5>
+          <button type="button" class="btn-close btn-close-white" (click)="cancelAutoAssignPreview()"></button>
+        </div>
+        <div class="modal-body">
+          <div *ngIf="error.preview" class="alert alert-danger mb-3">{{ error.preview }}</div>
+          
+          <div class="alert alert-primary mb-3">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Preview Mode:</strong> Review AI-suggested assignments before confirming. No changes will be made until you click "Confirm & Assign".
+          </div>
+          
+          <!-- Loading state -->
+          <div *ngIf="loading.preview" class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading assignment suggestions...</span>
+            </div>
+            <p class="mt-2">Analyzing tasks and developer performance...</p>
+          </div>
+          
+          <!-- No tasks to assign -->
+          <div *ngIf="!loading.preview && assignPreviewTasks.length === 0" class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            No "Dev-New" tasks available for assignment.
+          </div>
+          
+          <!-- Debugging information -->
+          <div *ngIf="!loading.preview && assignPreviewTasks.length === 0" class="mt-3">
+            <div class="accordion" id="debugAccordion">
+              <div class="accordion-item">
+                <h2 class="accordion-header" id="headingOne">
+                  <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                    <i class="bi bi-bug me-2"></i> Debug Information
+                  </button>
+                </h2>
+                <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#debugAccordion">
+                  <div class="accordion-body">
+                    <h6>Total Tasks: {{ tasks.length }}</h6>
+                    <div *ngIf="tasks.length > 0">
+                      <h6>Status Distribution:</h6>
+                      <ul>
+                        <li *ngFor="let status of getStatusDistribution()">
+                          {{ status.status }}: {{ status.count }}
+                        </li>
+                      </ul>
+                      
+                      <h6>Dev-New Tasks ({{ getDevNewTasks().length }}):</h6>
+                      <div class="table-responsive" *ngIf="getDevNewTasks().length > 0">
+                        <table class="table table-sm table-bordered">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Title</th>
+                              <th>Status</th>
+                              <th>Assigned To</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr *ngFor="let task of getDevNewTasks()">
+                              <td>{{ task.id }}</td>
+                              <td>{{ task.title }}</td>
+                              <td>{{ task.status }}</td>
+                              <td>{{ task.assignedTo || 'Unassigned' }}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                      
+                      <div *ngIf="getDevNewTasks().length === 0" class="alert alert-warning">
+                        No tasks with 'Dev-New' status found in the data.
+                      </div>
+                      
+                      <div *ngIf="getUnassignedDevNewTasks().length === 0 && getDevNewTasks().length > 0" class="alert alert-warning">
+                        Found {{ getDevNewTasks().length }} Dev-New tasks, but all are already assigned.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Preview table -->
+          <div *ngIf="!loading.preview && assignPreviewTasks.length > 0">
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Title</th>
+                    <th>Status</th>
+                    <th>Current Assignee</th>
+                    <th>Suggested Assignee</th>
+                    <th>Assignment Logic</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let task of assignPreviewTasks">
+                    <td>{{ task.id }}</td>
+                    <td>
+                      <span class="badge bg-info text-dark">{{ task.type }}</span>
+                    </td>
+                    <td>{{ task.title }}</td>
+                    <td>
+                      <span class="badge bg-secondary">{{ task.status }}</span>
+                    </td>
+                    <td>
+                      <span *ngIf="task.assignedTo" class="text-muted">{{ task.assignedTo }}</span>
+                      <span *ngIf="!task.assignedTo" class="badge bg-warning text-dark">Unassigned</span>
+                    </td>
+                    <td>
+                      <ng-container *ngIf="assignPreviewSuggestions[task.id]">
+                        <div class="d-flex align-items-center">
+                          <span class="badge bg-success me-2">AI Pick</span>
+                          <strong>{{ extractDeveloperName(assignPreviewSuggestions[task.id]) }}</strong>
+                          <span *ngIf="extractDeveloperName(assignPreviewSuggestions[task.id]) !== task.assignedTo && task.assignedTo" 
+                                class="ms-2 badge bg-warning text-dark">Reassignment</span>
+                        </div>
+                      </ng-container>
+                      <span *ngIf="!assignPreviewSuggestions[task.id]" class="text-muted">No suggestion available</span>
+                    </td>
+                    <td>
+                      <span *ngIf="assignPreviewSuggestions[task.id]" class="text-muted small">
+                        {{ extractLogicExplanation(assignPreviewSuggestions[task.id]) }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- Assignment Logic Legend -->
+            <div class="mt-4">
+              <h6>Assignment Logic Explanation:</h6>
+              <ul class="list-unstyled row">
+                <li class="col-md-6 mb-2">
+                  <i class="bi bi-trophy text-warning me-2"></i>
+                  <small><strong>Past Expertise</strong> - Completed similar tasks in the past 3 months</small>
+                </li>
+                <li class="col-md-6 mb-2">
+                  <i class="bi bi-check-circle text-success me-2"></i>
+                  <small><strong>Recent Completion</strong> - Recently completed tasks with no active work</small>
+                </li>
+                <li class="col-md-6 mb-2">
+                  <i class="bi bi-speedometer2 text-info me-2"></i>
+                  <small><strong>Low Workload</strong> - Developer with few active tasks</small>
+                </li>
+                <li class="col-md-6 mb-2">
+                  <i class="bi bi-person-plus text-primary me-2"></i>
+                  <small><strong>Least Assigned</strong> - Developer with lowest total task count</small>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" (click)="cancelAutoAssignPreview()">Cancel</button>
+          <button 
+            type="button" 
+            class="btn btn-primary" 
+            (click)="confirmAutoAssign()" 
+            [disabled]="loading.autoAssign || !assignPreviewTasks || assignPreviewTasks.length === 0 || !hasAssignmentSuggestions()">
+            <i class="bi bi-magic me-2"></i>
+            <span *ngIf="!loading.autoAssign">Confirm & Assign</span>
+            <span *ngIf="loading.autoAssign">
+              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              Assigning...
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal-backdrop fade show" *ngIf="showingPreview"></div>
 </div> 

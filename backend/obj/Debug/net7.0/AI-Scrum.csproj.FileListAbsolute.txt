@@ -85,3 +85,4 @@ E:\Project-AI\AI-Scrum\backend\obj\Debug\net7.0\refint\AI-Scrum.dll
 E:\Project-AI\AI-Scrum\backend\obj\Debug\net7.0\AI-Scrum.pdb
 E:\Project-AI\AI-Scrum\backend\obj\Debug\net7.0\AI-Scrum.genruntimeconfig.cache
 E:\Project-AI\AI-Scrum\backend\obj\Debug\net7.0\ref\AI-Scrum.dll
+E:\Project-AI\AI-Scrum\backend\bin\Debug\net7.0\Data\mock-tasks.json

@@ -11,6 +11,7 @@ import { TaskDistributionComponent } from './components/task-distribution/task-d
 import { RecommendationsComponent } from './features/recommendations/recommendations.component';
 import { TaskEstimationComponent } from './components/task-estimation/task-estimation.component';
 import { NavbarComponent } from './components/navbar/navbar.component';
+import { AutoAssignComponent } from './components/auto-assign/auto-assign.component';
 import { SettingsModule } from './components/settings/settings.module';
 import { SettingsComponent } from './components/settings/settings.component';
 
@@ -20,6 +21,7 @@ const routes: Routes = [
   { path: 'tasks', component: TaskDistributionComponent },
   { path: 'recommendations', component: RecommendationsComponent },
   { path: 'estimation', component: TaskEstimationComponent },
+  { path: 'auto-assign', component: AutoAssignComponent },
   { path: 'settings', component: SettingsComponent },
   { path: '**', redirectTo: '/dashboard' }
 ];
@@ -31,7 +33,8 @@ const routes: Routes = [
     TaskDistributionComponent,
     RecommendationsComponent,
     TaskEstimationComponent,
-    NavbarComponent
+    NavbarComponent,
+    AutoAssignComponent
   ],
   imports: [
     BrowserModule,

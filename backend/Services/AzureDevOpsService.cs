@@ -330,12 +330,27 @@ namespace AI_Scrum.Services
         {
             try
             {
+                var useMockData = _configuration.GetValue<bool>("AzureDevOps:UseMockData");
+                
+                if (useMockData)
+                {
+                    _logger.LogInformation("Mock data is enabled in configuration. Using mock task data instead of Azure DevOps.");
+                    return GetDemoWorkItems(iterationPath);
+                }
+                
                 if (string.IsNullOrEmpty(_pat) || string.IsNullOrEmpty(_organization) || string.IsNullOrEmpty(_project))
                 {
-                    _logger.LogWarning("Azure DevOps credentials not configured. Returning demo data.");
+                    _logger.LogWarning("Azure DevOps credentials not configured. Organization: {Organization}, Project: {Project}, PAT Length: {PatLength}",
+                        string.IsNullOrEmpty(_organization) ? "Missing" : _organization,
+                        string.IsNullOrEmpty(_project) ? "Missing" : _project,
+                        string.IsNullOrEmpty(_pat) ? 0 : _pat.Length);
+                    
                     return GetDemoWorkItems(iterationPath);
                 }
 
+                _logger.LogInformation("Connecting to Azure DevOps with Organization: {Organization}, Project: {Project}",
+                    _organization, _project);
+                
                 using var connection = GetConnection();
                 var witClient = connection.GetClient<WorkItemTrackingHttpClient>();
 
@@ -349,9 +364,13 @@ namespace AI_Scrum.Services
                            $"ORDER BY [System.Id]"
                 };
 
+                _logger.LogInformation("Executing WIQL query for iteration path: {IterationPath}", iterationPath);
+                
                 try
                 {
                     var queryResult = await witClient.QueryByWiqlAsync(wiql);
+                    
+                    _logger.LogInformation("WIQL query returned {Count} work items", queryResult.WorkItems.Count());
                     
                     if (queryResult.WorkItems.Count() == 0)
                     {
@@ -360,6 +379,9 @@ namespace AI_Scrum.Services
                     
                     // Get work item details for the results
                     var ids = queryResult.WorkItems.Select(wi => wi.Id).ToArray();
+                    
+                    _logger.LogInformation("Fetching detailed work item information for {Count} items", ids.Length);
+                    
                     var workItemRefs = await witClient.GetWorkItemsAsync(ids, 
                         expand: Microsoft.TeamFoundation.WorkItemTracking.WebApi.Models.WorkItemExpand.All);
                     
@@ -387,69 +409,96 @@ namespace AI_Scrum.Services
                         workItems.Add(workItem);
                     }
                     
+                    _logger.LogInformation("Successfully loaded {Count} work items from Azure DevOps", workItems.Count);
+                    _logger.LogInformation("Status distribution: {StatusCounts}", 
+                        string.Join(", ", workItems.GroupBy(w => w.Status).Select(g => $"{g.Key}: {g.Count()}")));
+                    
+                    // Log Dev-New tasks specifically for debugging
+                    var devNewTasks = workItems.Where(w => w.Status?.ToLower() == "dev-new").ToList();
+                    _logger.LogInformation("Found {Count} Dev-New tasks in total, {UnassignedCount} unassigned", 
+                        devNewTasks.Count, 
+                        devNewTasks.Count(t => string.IsNullOrEmpty(t.AssignedTo)));
+                    
                     return workItems;
                 }
                 catch (VssServiceException ex) when (ex.Message.Contains("iteration path does not exist"))
                 {
-                    _logger.LogWarning("Iteration path '{IterationPath}' does not exist in Azure DevOps. Returning demo data.", iterationPath);
+                    _logger.LogWarning("Iteration path '{IterationPath}' does not exist in Azure DevOps. Error: {Error}", 
+                        iterationPath, ex.Message);
+                    return GetDemoWorkItems(iterationPath);
+                }
+                catch (VssServiceException ex)
+                {
+                    _logger.LogError(ex, "Azure DevOps API error when querying work items: {Message}", ex.Message);
                     return GetDemoWorkItems(iterationPath);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error getting work items for iteration {IterationPath}", iterationPath);
+                _logger.LogError(ex, "Error getting work items for iteration {IterationPath}. Exception type: {ExceptionType}, Message: {Message}", 
+                    iterationPath, ex.GetType().Name, ex.Message);
+                
+                if (ex.InnerException != null)
+                {
+                    _logger.LogError("Inner exception: {Type} - {Message}", 
+                        ex.InnerException.GetType().Name, ex.InnerException.Message);
+                }
+                
                 return GetDemoWorkItems(iterationPath);
             }
         }
 
         private List<AI_Scrum.Models.WorkItem> GetDemoWorkItems(string iterationPath = null)
         {
-            // Return demo data for development/when Azure DevOps is not configured
-            var demoItems = new List<AI_Scrum.Models.WorkItem>
+            try
             {
-                new AI_Scrum.Models.WorkItem { Id = 1001, Title = "Create login screen", Status = "Completed", AssignedTo = "Jane Smith", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1002, Title = "Implement user authentication", Status = "In Progress", AssignedTo = "John Doe", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1003, Title = "Design database schema", Status = "Completed", AssignedTo = "Sam Wilson", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1004, Title = "Create API endpoints", Status = "In Progress", AssignedTo = "Jane Smith", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1005, Title = "Implement dashboard UI", Status = "In Progress", AssignedTo = "Alex Johnson", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1006, Title = "Write unit tests", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "3", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1007, Title = "Setup CI/CD pipeline", Status = "Blocked", AssignedTo = "John Doe", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1008, Title = "Implement error logging", Status = "Completed", AssignedTo = "Sam Wilson", Type = "Task", Priority = "3", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1009, Title = "Create user documentation", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "4", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1010, Title = "Performance optimization", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "3", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1011, Title = "Security audit", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1012, Title = "Integration testing", Status = "To Do", AssignedTo = "", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1013, Title = "Implement feedback from testers", Status = "Completed", AssignedTo = "Alex Johnson", Type = "Task", Priority = "2", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1014, Title = "Deploy to staging", Status = "Completed", AssignedTo = "John Doe", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" },
-                new AI_Scrum.Models.WorkItem { Id = 1015, Title = "Final QA review", Status = "In Progress", AssignedTo = "Jane Smith", Type = "Task", Priority = "1", IterationPath = iterationPath ?? "Project\\Sprint 3" }
-            };
-            
-            // For iterations that match our demo data format, we'll modify assignees to match our demo team members
-            if (!string.IsNullOrEmpty(iterationPath) && iterationPath.StartsWith("Techoil\\"))
-            {
-                var teamMembers = GetDemoTeamMembers(iterationPath)
-                    .Select(m => m.DisplayName)
-                    .ToList();
-                    
-                if (teamMembers.Any())
+                var useMockData = _configuration.GetValue<bool>("AzureDevOps:UseMockData");
+                var mockDataPath = _configuration.GetValue<string>("AzureDevOps:MockDataPath");
+                
+                _logger.LogInformation("Using mock task data from configuration. UseMockData: {UseMockData}, Path: {MockDataPath}", 
+                    useMockData, mockDataPath);
+                
+                if (useMockData && !string.IsNullOrEmpty(mockDataPath) && File.Exists(mockDataPath))
                 {
-                    // Distribute tasks among team members
-                    for (int i = 0; i < demoItems.Count; i++)
+                    // Load mock data from JSON file
+                    _logger.LogInformation("Loading mock task data from file: {MockDataPath}", mockDataPath);
+                    var json = File.ReadAllText(mockDataPath);
+                    var tasks = System.Text.Json.JsonSerializer.Deserialize<List<AI_Scrum.Models.WorkItem>>(json);
+                    
+                    if (tasks != null && tasks.Any())
                     {
-                        var item = demoItems[i];
-                        // For some tasks, leave them unassigned
-                        if (i % 4 != 3) // Assign 3 out of every 4 tasks
+                        // If iteration path is specified, filter tasks to match the requested path
+                        if (!string.IsNullOrEmpty(iterationPath))
                         {
-                            item.AssignedTo = teamMembers[i % teamMembers.Count];
+                            tasks = tasks.Where(t => t.IterationPath == iterationPath).ToList();
                         }
-                        else
-                        {
-                            item.AssignedTo = "";
-                        }
-                        item.IterationPath = iterationPath;
+                        
+                        _logger.LogInformation("Loaded {Count} mock tasks from file", tasks.Count);
+                        return tasks;
                     }
                 }
+                
+                // If mock data loading failed or is disabled, return fallback mock data
+                _logger.LogWarning("Mock data loading failed or disabled. Using fallback mock data.");
+                return GetFallbackMockTasks(iterationPath);
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error loading mock task data from file. Using fallback mock data.");
+                return GetFallbackMockTasks(iterationPath);
+            }
+        }
+        
+        private List<AI_Scrum.Models.WorkItem> GetFallbackMockTasks(string iterationPath = null)
+        {
+            // Fallback mock data in case file loading fails
+            var demoItems = new List<AI_Scrum.Models.WorkItem>
+            {
+                // Add a few basic tasks as absolute fallback
+                new AI_Scrum.Models.WorkItem { Id = 54993, Title = "Performance issue on month closure process", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "3", IterationPath = iterationPath ?? "Techoil\\2.3.23" },
+                new AI_Scrum.Models.WorkItem { Id = 58865, Title = "Invoice flag is not update properly while raise the invoice", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "4", IterationPath = iterationPath ?? "Techoil\\2.3.23" },
+                new AI_Scrum.Models.WorkItem { Id = 59894, Title = "Due date calculation is NOT same in Invoice Popup and Invoice details screen", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "2", IterationPath = iterationPath ?? "Techoil\\2.3.23" }
+            };
             
             return demoItems;
         }

@@ -104,19 +104,17 @@ export class TaskService {
   }
 
   /**
-   * Get auto-assignment suggestions for tasks in the given iteration
+   * Get auto-assign suggestions for tasks in the given iteration
    * @param iterationPath The iteration path to get suggestions for
-   * @returns Observable of task ID to team member ID mapping
+   * @returns Observable of task ID to suggested assignee mapping
    */
   getAutoAssignSuggestions(iterationPath: string): Observable<Record<string, string>> {
-    // Manually encode the iterationPath to ensure backslashes are correctly encoded
-    const encodedIterationPath = encodeURIComponent(iterationPath);
-    const params = new HttpParams().set('iterationPath', encodedIterationPath);
-
-    return this.http.get<Record<string, string>>(`${this.apiUrl}/auto-assign-suggestions`, { params })
-      .pipe(
-        catchError(error => this.handleError(error, 'fetching auto-assign suggestions'))
-      );
+    // Ensure the iterationPath is properly encoded
+    const params = new HttpParams().set('iterationPath', encodeURIComponent(iterationPath));
+    
+    return this.http.get<Record<string, string>>(`${this.apiUrl}/auto-assign-suggestions`, { params }).pipe(
+      catchError(error => this.handleError(error, 'getting auto-assign suggestions'))
+    );
   }
 
   /**

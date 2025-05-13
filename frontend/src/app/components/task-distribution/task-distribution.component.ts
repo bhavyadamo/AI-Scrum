@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { TaskService } from '../../services/task.service';
 import { TeamService } from '../../services/team.service';
 import { WorkItem, TeamMember } from '../../models/task.model';
+import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-task-distribution',
@@ -20,6 +21,11 @@ export class TaskDistributionComponent implements OnInit {
   iterationPaths: string[] = []; // Will be loaded from API
   teamMemberTaskCounts: Record<string, number> = {}; // Added for task counts
   
+  // Auto-assign preview properties
+  showingPreview: boolean = false;
+  assignPreviewTasks: WorkItem[] = [];
+  assignPreviewSuggestions: Record<string, string> = {};
+  
   // Convert simple boolean to object with specific loading states
   loading: { 
     tasks: boolean; 
@@ -28,13 +34,15 @@ export class TaskDistributionComponent implements OnInit {
     autoAssign: boolean;
     iterationPaths: boolean;
     taskCounts: boolean; // Added for task counts loading
+    preview: boolean; // Added for auto-assign preview loading
   } = {
     tasks: false,
     members: false,
     assign: false,
     autoAssign: false,
     iterationPaths: false,
-    taskCounts: false // Added for task counts loading
+    taskCounts: false, // Added for task counts loading
+    preview: false // Added for auto-assign preview loading
   };
   
   // Convert simple string to object with specific error states
@@ -45,13 +53,15 @@ export class TaskDistributionComponent implements OnInit {
     autoAssign: string | null;
     iterationPaths: string | null;
     taskCounts: string | null; // Added for task counts errors
+    preview: string | null; // Added for auto-assign preview errors
   } = {
     tasks: null,
     members: null,
     assign: null,
     autoAssign: null,
     iterationPaths: null,
-    taskCounts: null // Added for task counts errors
+    taskCounts: null, // Added for task counts errors
+    preview: null // Added for auto-assign preview errors
   };
 
   constructor(
@@ -324,6 +334,144 @@ export class TaskDistributionComponent implements OnInit {
     }, 3000);
   }
 
+  /**
+   * Show auto-assign preview before actually assigning tasks
+   */
+  showAutoAssignPreview(): void {
+    this.loading.preview = true;
+    this.error.preview = null;
+    this.showingPreview = true;
+    
+    // First get all tasks for the iteration path
+    this.taskService.getTasks(this.currentIterationPath).subscribe({
+      next: (tasks) => {
+        console.log('Got tasks from service:', tasks);
+        console.log('Tasks with Dev-New status:', tasks.filter(t => 
+          t.status && t.status.toLowerCase() === 'dev-new'
+        ));
+        
+        // First, get all Dev-New tasks
+        const allDevNewTasks = tasks.filter(t => 
+          t.status && t.status.toLowerCase() === 'dev-new'
+        );
+        
+        console.log('All Dev-New tasks:', allDevNewTasks);
+        
+        // Then, get suggestions for which tasks should be reassigned
+        this.taskService.getAutoAssignSuggestions(this.currentIterationPath).subscribe({
+          next: (suggestions) => {
+            this.assignPreviewSuggestions = suggestions;
+            console.log('Got suggestions:', suggestions);
+            
+            // Filter tasks to only include those in the suggestions (tasks to be reassigned)
+            const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
+            this.assignPreviewTasks = allDevNewTasks.filter(task => 
+              suggestedTaskIds.includes(task.id)
+            );
+            
+            console.log('Filtered tasks to be reassigned:', this.assignPreviewTasks);
+            this.loading.preview = false;
+          },
+          error: (err) => {
+            this.error.preview = `Failed to load auto-assign suggestions: ${err.message}`;
+            this.loading.preview = false;
+          }
+        });
+      },
+      error: (err) => {
+        this.error.preview = `Failed to load tasks: ${err.message}`;
+        this.loading.preview = false;
+      }
+    });
+  }
+  
+  /**
+   * Check if there are valid assignment suggestions
+   */
+  hasAssignmentSuggestions(): boolean {
+    return this.assignPreviewSuggestions && Object.keys(this.assignPreviewSuggestions).length > 0;
+  }
+  
+  /**
+   * Cancel auto-assign preview and close the modal
+   */
+  cancelAutoAssignPreview(): void {
+    this.showingPreview = false;
+    this.assignPreviewTasks = [];
+    this.assignPreviewSuggestions = {};
+    this.error.preview = null;
+  }
+  
+  /**
+   * Confirm and perform the auto-assignments
+   */
+  confirmAutoAssign(): void {
+    this.loading.autoAssign = true;
+    this.error.autoAssign = null;
+    
+    const assignmentPromises = [];
+    let assignmentCount = 0;
+    
+    // For each task with a suggestion, create an assignment
+    for (const task of this.assignPreviewTasks) {
+      if (this.assignPreviewSuggestions[task.id]) {
+        const developerName = this.extractDeveloperName(this.assignPreviewSuggestions[task.id]);
+        assignmentPromises.push(
+          this.taskService.assignTask(task.id, developerName)
+        );
+        assignmentCount++;
+      }
+    }
+    
+    // If we have assignments to make, execute them all in parallel
+    if (assignmentPromises.length > 0) {
+      forkJoin(assignmentPromises).subscribe({
+        next: () => {
+          // Hide the preview after successful assignment
+          this.showingPreview = false;
+          
+          // Refresh the task list
+          this.loadTasks();
+          
+          // Show success message
+          alert(`Successfully assigned ${assignmentCount} tasks.`);
+          
+          this.loading.autoAssign = false;
+        },
+        error: (err) => {
+          this.error.autoAssign = `Error assigning tasks: ${err.message}`;
+          this.loading.autoAssign = false;
+        }
+      });
+    } else {
+      this.loading.autoAssign = false;
+      this.error.preview = "No tasks available for assignment.";
+    }
+  }
+  
+  /**
+   * Extract just the developer name from the suggestion string
+   * Format is typically "Name (explanation)"
+   */
+  extractDeveloperName(suggestion: string): string {
+    if (!suggestion) return '';
+    const parts = suggestion.split(' (');
+    return parts[0];
+  }
+  
+  /**
+   * Extract the logic explanation from the suggestion string
+   * Format is typically "Name (explanation)"
+   */
+  extractLogicExplanation(suggestion: string): string {
+    if (!suggestion) return '';
+    const match = suggestion.match(/\((.*?)\)/);
+    return match ? match[1] : '';
+  }
+
+  /**
+   * Original auto-assign tasks method - replaced with preview workflow
+   */
   autoAssignTasks(): void {
     this.loading.autoAssign = true;
     this.error.autoAssign = null;
@@ -580,5 +728,45 @@ export class TaskDistributionComponent implements OnInit {
     );
     
     return member ? member.currentWorkload : 0;
+  }
+
+  /**
+   * Get a list of all tasks with Dev-New status
+   * @returns List of Dev-New tasks
+   */
+  getDevNewTasks(): WorkItem[] {
+    return this.tasks.filter(task => 
+      task.status && task.status.toLowerCase() === 'dev-new'
+    );
+  }
+
+  /**
+   * Get a list of unassigned Dev-New tasks
+   * @returns List of unassigned Dev-New tasks
+   */
+  getUnassignedDevNewTasks(): WorkItem[] {
+    return this.tasks.filter(task => 
+      task.status && 
+      task.status.toLowerCase() === 'dev-new' && 
+      !task.assignedTo
+    );
+  }
+  
+  /**
+   * Get a summary of task status distribution
+   * @returns Array of status counts
+   */
+  getStatusDistribution(): {status: string, count: number}[] {
+    const statusCounts: {[key: string]: number} = {};
+    
+    this.tasks.forEach(task => {
+      const status = task.status || 'Unknown';
+      statusCounts[status] = (statusCounts[status] || 0) + 1;
+    });
+    
+    return Object.entries(statusCounts).map(([status, count]) => ({
+      status, 
+      count
+    })).sort((a, b) => b.count - a.count);
   }
 }
