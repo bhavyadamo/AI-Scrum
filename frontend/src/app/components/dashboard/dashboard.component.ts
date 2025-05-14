@@ -148,6 +148,17 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   // Stats grouping for types and statuses
   tasksByType: { type: string; count: number; color: string }[] = [];
 
+  // Method to decode iteration path for display
+  decodeIterationPath(path: string): string {
+    if (!path) return '';
+    // Replace the encoded backslash with an actual backslash
+    // Handle both double-encoded (%255C) and single-encoded (%5C) backslashes
+    let decoded = path.replace(/%255C/g, '\\');
+    decoded = decoded.replace(/%5C/g, '\\');
+    decoded = decoded.replace(/%5c/g, '\\');
+    return decoded;
+  }
+
   constructor(
     private dashboardService: DashboardService,
     private azureDevOpsService: AzureDevOpsService,
@@ -182,8 +193,31 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     this.selectedIterationPath = this.selectedIterationPath.trim();
     
     // Reset loading and error states
+    this.loading.sprint = true;
+    this.error.sprint = '';
     this.loadingTaskDetails = true;
     this.taskDetailsError = '';
+    
+    console.log(`Loading data for iteration path: ${this.selectedIterationPath}`);
+    
+    // Load sprint details for the selected iteration path
+    this.dashboardService.getSprintDetailsByIterationPath(this.selectedIterationPath)
+      .subscribe({
+        next: (data) => {
+          console.log('Sprint details loaded:', data);
+          // Ensure proper display by decoding the iteration path
+          if (data.iterationPath) {
+            data.sprintName = this.decodeIterationPath(data.sprintName);
+          }
+          this.sprintOverview = data;
+          this.loading.sprint = false;
+        },
+        error: (err) => {
+          this.error.sprint = 'Failed to load sprint details';
+          this.loading.sprint = false;
+          console.error('Error loading sprint details:', err);
+        }
+      });
     
     // Load Azure DevOps work items directly first to get live data
     this.loadAzureDevOpsWorkItemsWithWiql();
@@ -739,17 +773,34 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     const message = this.currentMessage;
     this.currentMessage = '';
     
+    // Show loading indicator
+    this.chatMessages.push({
+      role: 'assistant',
+      content: 'Thinking...',
+      timestamp: new Date()
+    });
+    
     // Call API to get response
-    this.dashboardService.sendChatMessage(message).subscribe({
+    this.dashboardService.sendChatMessage({
+      message: message,
+      currentIterationPath: this.selectedIterationPath
+    }).subscribe({
       next: (response) => {
+        // Remove the loading indicator
+        this.chatMessages.pop();
+        
+        // Add the actual response
         const assistantMessage: ChatMessage = {
           role: 'assistant',
-          content: response,
+          content: response.message,
           timestamp: new Date()
         };
         this.chatMessages.push(assistantMessage);
       },
       error: (err) => {
+        // Remove the loading indicator
+        this.chatMessages.pop();
+        
         console.error('Error getting chat response:', err);
         // Add fallback response
         const fallbackMessage: ChatMessage = {

@@ -29,6 +29,16 @@ export class DashboardService {
     // Use double-encoded backslashes (%255C) which is what the working API expects
     return iterationPath.replace(/\\/g, '%255C');
   }
+  
+  // Helper method to decode iteration path for display
+  private decodeIterationPath(path: string): string {
+    if (!path) return '';
+    // Replace the encoded backslash with an actual backslash
+    let decoded = path.replace(/%255C/g, '\\');
+    decoded = decoded.replace(/%5C/g, '\\');
+    decoded = decoded.replace(/%5c/g, '\\');
+    return decoded;
+  }
 
   getCurrentSprint(): Observable<SprintOverview> {
     return this.http.get<SprintOverview>(`${this.apiUrl}/sprint`);
@@ -115,7 +125,16 @@ export class DashboardService {
       );
   }
 
-  sendChatMessage(message: string): Observable<string> {
-    return this.http.post<string>(`${this.apiUrl}/chat`, { message });
+  sendChatMessage(data: { message: string, currentIterationPath: string }): Observable<any> {
+    return this.http.post<any>(`${this.apiUrl}/chat`, { 
+      message: data.message,
+      currentIterationPath: data.currentIterationPath 
+    });
+  }
+
+  getSprintDetailsByIterationPath(iterationPath: string): Observable<SprintOverview> {
+    const encodedPath = this.encodeIterationPath(iterationPath);
+    let params = new HttpParams().set('iterationPath', encodedPath);
+    return this.http.get<SprintOverview>(`${this.apiUrl}/sprint-details`, { params });
   }
 } 

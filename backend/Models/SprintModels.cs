@@ -1,10 +1,27 @@
+using System.Text.Json.Serialization;
+
 namespace AI_Scrum.Models
 {
     public class SprintOverview
     {
         public string SprintName { get; set; } = string.Empty;
+        
+        [JsonPropertyName("startDate")]
         public DateTime StartDate { get; set; }
+        
+        [JsonPropertyName("endDate")]
         public DateTime EndDate { get; set; }
+        
+        public int DaysRemaining { get; set; }
+        public string IterationPath { get; set; } = string.Empty;
+    }
+
+    // This class is used for serialization to the frontend
+    public class IterationInfo
+    {
+        public string SprintName { get; set; } = string.Empty;
+        public string StartDate { get; set; } = string.Empty;
+        public string EndDate { get; set; } = string.Empty; 
         public int DaysRemaining { get; set; }
         public string IterationPath { get; set; } = string.Empty;
     }
@@ -46,5 +63,18 @@ namespace AI_Scrum.Models
     public class ActivityFeed
     {
         public List<ActivityItem> Activities { get; set; } = new List<ActivityItem>();
+    }
+    
+    public class ChatQuery
+    {
+        public string Message { get; set; } = string.Empty;
+        public string CurrentIterationPath { get; set; } = string.Empty;
+    }
+    
+    public class ChatResponse
+    {
+        public string Message { get; set; } = string.Empty;
+        public bool Success { get; set; } = true;
+        public Dictionary<string, object>? Data { get; set; }
     }
 } 

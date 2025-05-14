@@ -10,6 +10,8 @@ namespace AI_Scrum.Services
         Task<List<WorkItem>> GetWorkItemsAsync(string iterationPath);
         Task<bool> UpdateWorkItemAsync(int id, Dictionary<string, object> updates);
         Task<SprintOverview> GetCurrentSprintAsync();
+        Task<SprintOverview> GetSprintDetailsByIterationPathAsync(string iterationPath);
         Task<List<ActivityItem>> GetActivityLogAsync(int count = 10);
+        Task<ChatResponse> HandleChatQueryAsync(string query, string currentIterationPath);
     }
 } 

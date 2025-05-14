@@ -102,6 +102,20 @@ namespace AI_Scrum.Services
                     .Where(p => !string.IsNullOrEmpty(p))
                     .ToList();
 
+                // Log found iterations for debugging
+                _logger.LogInformation("Found {Count} iterations for project {Project}", iterationPaths.Count, _project);
+                foreach (var path in iterationPaths.Take(5))
+                {
+                    _logger.LogInformation("Iteration path: {Path}", path);
+                    var iteration = iterations.FirstOrDefault(i => i.Path == path);
+                    if (iteration?.Attributes != null)
+                    {
+                        _logger.LogInformation("  Start date: {StartDate}, End date: {EndDate}", 
+                            iteration.Attributes.StartDate, 
+                            iteration.Attributes.FinishDate);
+                    }
+                }
+
                 return iterationPaths;
             }
             catch (Exception ex)
@@ -700,6 +714,123 @@ namespace AI_Scrum.Services
             }
         }
 
+        public async Task<SprintOverview> GetSprintDetailsByIterationPathAsync(string iterationPath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_pat) || string.IsNullOrEmpty(_organization) || string.IsNullOrEmpty(_project))
+                {
+                    _logger.LogWarning("Azure DevOps credentials not configured. Returning demo data for sprint.");
+                    return GetDemoSprintDetails(iterationPath);
+                }
+
+                using var connection = GetConnection();
+                var workClient = connection.GetClient<WorkHttpClient>();
+                var projectClient = connection.GetClient<ProjectHttpClient>();
+                var teamClient = connection.GetClient<TeamHttpClient>();
+
+                // Get project
+                var project = await projectClient.GetProject(_project);
+                if (project == null)
+                {
+                    _logger.LogError("Project {Project} not found", _project);
+                    return GetDemoSprintDetails(iterationPath);
+                }
+
+                // Get teams - need to get a team to access iterations
+                var teams = await teamClient.GetTeamsAsync(project.Id.ToString());
+                if (teams == null || !teams.Any())
+                {
+                    _logger.LogWarning("No teams found in project {Project}", _project);
+                    return GetDemoSprintDetails(iterationPath);
+                }
+
+                var defaultTeam = teams.FirstOrDefault();
+                if (defaultTeam == null)
+                {
+                    _logger.LogWarning("Could not find default team in project {Project}", _project);
+                    return GetDemoSprintDetails(iterationPath);
+                }
+
+                // Create team context
+                var teamContext = new TeamContext(project.Id.ToString())
+                {
+                    Team = defaultTeam.Id.ToString()
+                };
+
+                // Get all iterations for the team
+                var iterations = await workClient.GetTeamIterationsAsync(teamContext);
+                if (iterations == null || !iterations.Any())
+                {
+                    _logger.LogWarning("No iterations found for team {Team} in project {Project}", defaultTeam.Name, _project);
+                    return GetDemoSprintDetails(iterationPath);
+                }
+
+                // Find the requested iteration
+                var matchingIteration = iterations.FirstOrDefault(i => 
+                    i.Path != null && 
+                    i.Path.Equals(iterationPath, StringComparison.OrdinalIgnoreCase));
+
+                if (matchingIteration == null)
+                {
+                    _logger.LogWarning("Iteration path {IterationPath} not found", iterationPath);
+                    return GetDemoSprintDetails(iterationPath);
+                }
+
+                // Extract sprint name from path (last part after backslash)
+                string sprintName = iterationPath;
+                if (iterationPath.Contains("\\"))
+                {
+                    sprintName = iterationPath.Split('\\').Last();
+                }
+
+                // Calculate days remaining
+                int daysRemaining = 0;
+                if (matchingIteration.Attributes?.FinishDate != null)
+                {
+                    var endDate = matchingIteration.Attributes.FinishDate.Value;
+                    if (endDate > DateTime.Now)
+                    {
+                        daysRemaining = (endDate - DateTime.Now).Days;
+                    }
+                }
+
+                return new SprintOverview
+                {
+                    SprintName = sprintName,
+                    StartDate = matchingIteration.Attributes?.StartDate ?? DateTime.Now,
+                    EndDate = matchingIteration.Attributes?.FinishDate ?? DateTime.Now.AddDays(14),
+                    DaysRemaining = daysRemaining,
+                    IterationPath = iterationPath
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting sprint details for iteration {IterationPath}", iterationPath);
+                return GetDemoSprintDetails(iterationPath);
+            }
+        }
+
+        private SprintOverview GetDemoSprintDetails(string iterationPath)
+        {
+            // Extract sprint name from iteration path
+            string sprintName = iterationPath;
+            if (iterationPath.Contains("\\"))
+            {
+                sprintName = iterationPath.Split('\\').Last();
+            }
+
+            var now = DateTime.Now;
+            return new SprintOverview
+            {
+                SprintName = sprintName,
+                StartDate = now.AddDays(-10),
+                EndDate = now.AddDays(4),
+                DaysRemaining = 4,
+                IterationPath = iterationPath
+            };
+        }
+
         public async Task<List<ActivityItem>> GetActivityLogAsync(int count = 10)
         {
             try
@@ -728,6 +859,625 @@ namespace AI_Scrum.Services
                 _logger.LogError(ex, "Error getting activity log");
                 throw;
             }
+        }
+        
+        public async Task<ChatResponse> HandleChatQueryAsync(string query, string currentIterationPath)
+        {
+            _logger.LogInformation("Processing chat query: {Query} for iteration {IterationPath}", query, currentIterationPath);
+            
+            try
+            {
+                // Lowercase query for case-insensitive matching
+                string lowercaseQuery = query.ToLower().Trim();
+                
+                // Task assignment - check if someone is trying to assign a task by ID
+                if ((lowercaseQuery.Contains("assign") || lowercaseQuery.Contains("allocate")) && 
+                    (lowercaseQuery.Contains("task") || lowercaseQuery.Contains("item") || lowercaseQuery.Contains("work")))
+                {
+                    // Try to extract task ID and assignee
+                    int taskId = ExtractTaskIdFromQuery(lowercaseQuery);
+                    string assignee = ExtractNameFromQuery(lowercaseQuery);
+                    
+                    if (taskId > 0 && !string.IsNullOrEmpty(assignee))
+                    {
+                        // Get team members to validate the assignee
+                        var teamMembers = await GetTeamMembersAsync(currentIterationPath);
+                        
+                        // Try to find matching team member
+                        var matchingMember = teamMembers.FirstOrDefault(m => 
+                            m.DisplayName.ToLower().Contains(assignee) || 
+                            m.Email.ToLower().Contains(assignee));
+                            
+                        if (matchingMember != null)
+                        {
+                            // Update the work item with the assigned to field
+                            var updates = new Dictionary<string, object>
+                            {
+                                { "System.AssignedTo", matchingMember.DisplayName }
+                            };
+                            
+                            bool success = await UpdateWorkItemAsync(taskId, updates);
+                            
+                            if (success)
+                            {
+                                return new ChatResponse
+                                {
+                                    Message = $"Task #{taskId} has been assigned to {matchingMember.DisplayName}.",
+                                    Success = true,
+                                    Data = new Dictionary<string, object>
+                                    {
+                                        { "taskId", taskId },
+                                        { "assignedTo", matchingMember.DisplayName }
+                                    }
+                                };
+                            }
+                            else
+                            {
+                                return new ChatResponse
+                                {
+                                    Message = $"I couldn't assign task #{taskId} to {matchingMember.DisplayName}. Please check if the task ID is valid and try again.",
+                                    Success = false
+                                };
+                            }
+                        }
+                        else
+                        {
+                            return new ChatResponse
+                            {
+                                Message = $"I couldn't find a team member matching '{assignee}'. Available team members are: {string.Join(", ", teamMembers.Take(5).Select(m => m.DisplayName))}.",
+                                Success = false
+                            };
+                        }
+                    }
+                    else if (taskId > 0 && string.IsNullOrEmpty(assignee))
+                    {
+                        return new ChatResponse
+                        {
+                            Message = $"You want to assign task #{taskId}, but I need to know who to assign it to. Please specify a team member name.",
+                            Success = false
+                        };
+                    }
+                    else if (taskId <= 0 && !string.IsNullOrEmpty(assignee))
+                    {
+                        return new ChatResponse
+                        {
+                            Message = $"I need a valid task ID to assign work to {assignee}. Please specify which task to assign.",
+                            Success = false
+                        };
+                    }
+                }
+                
+                // Task distribution - show current workload distribution
+                if (lowercaseQuery.Contains("task distribution") || 
+                    lowercaseQuery.Contains("work distribution") || 
+                    lowercaseQuery.Contains("workload distribution") ||
+                    (lowercaseQuery.Contains("distribution") && lowercaseQuery.Contains("team")))
+                {
+                    var teamMembers = await GetTeamMembersAsync(currentIterationPath);
+                    var workItems = await GetWorkItemsAsync(currentIterationPath);
+                    
+                    if (teamMembers.Any())
+                    {
+                        // Calculate workload for each team member
+                        var workloadByMember = teamMembers
+                            .Select(member => new 
+                            {
+                                Name = member.DisplayName,
+                                TaskCount = workItems.Count(w => 
+                                    !string.IsNullOrEmpty(w.AssignedTo) && 
+                                    (w.AssignedTo.Equals(member.DisplayName, StringComparison.OrdinalIgnoreCase) ||
+                                     w.AssignedTo.Equals(member.Email, StringComparison.OrdinalIgnoreCase)))
+                            })
+                            .OrderByDescending(x => x.TaskCount)
+                            .ToList();
+                            
+                        // Calculate average workload
+                        double averageWorkload = workloadByMember.Count > 0 
+                            ? workloadByMember.Average(w => w.TaskCount) 
+                            : 0;
+                            
+                        string message = $"Current task distribution for the sprint: ";
+                        message += string.Join(", ", workloadByMember.Select(m => $"{m.Name}: {m.TaskCount} tasks"));
+                        message += $". Average workload: {averageWorkload:F1} tasks per person.";
+                        
+                        // Identify overloaded/underloaded team members
+                        var overloaded = workloadByMember.Where(w => w.TaskCount > averageWorkload * 1.5).ToList();
+                        var underloaded = workloadByMember.Where(w => w.TaskCount < averageWorkload * 0.5 && w.TaskCount > 0).ToList();
+                        var unassigned = workloadByMember.Where(w => w.TaskCount == 0).ToList();
+                        
+                        if (overloaded.Any())
+                        {
+                            message += $" Overloaded team members: {string.Join(", ", overloaded.Select(m => m.Name))}.";
+                        }
+                        
+                        if (underloaded.Any())
+                        {
+                            message += $" Team members with lighter workloads: {string.Join(", ", underloaded.Select(m => m.Name))}.";
+                        }
+                        
+                        if (unassigned.Any())
+                        {
+                            message += $" Team members with no tasks: {string.Join(", ", unassigned.Select(m => m.Name))}.";
+                        }
+                        
+                        return new ChatResponse
+                        {
+                            Message = message,
+                            Data = new Dictionary<string, object>
+                            {
+                                { "workloadDistribution", workloadByMember },
+                                { "averageWorkload", averageWorkload }
+                            }
+                        };
+                    }
+                    else
+                    {
+                        return new ChatResponse
+                        {
+                            Message = "I couldn't find team member information for the current sprint.",
+                            Success = false
+                        };
+                    }
+                }
+                
+                // Suggest next task assignment based on workload
+                if (lowercaseQuery.Contains("suggest") && 
+                   (lowercaseQuery.Contains("assignment") || lowercaseQuery.Contains("assignee") || 
+                    lowercaseQuery.Contains("team member") || lowercaseQuery.Contains("who should")))
+                {
+                    int taskId = ExtractTaskIdFromQuery(lowercaseQuery);
+                    
+                    // Get team members and their current workload
+                    var teamMembers = await GetTeamMembersAsync(currentIterationPath);
+                    
+                    if (teamMembers.Any())
+                    {
+                        // Sort by current workload (ascending)
+                        var sortedMembers = teamMembers
+                            .Where(m => m.IsActive)
+                            .OrderBy(m => m.CurrentWorkload)
+                            .ToList();
+                            
+                        if (sortedMembers.Any())
+                        {
+                            var suggestedAssignee = sortedMembers.First();
+                            
+                            if (taskId > 0)
+                            {
+                                // Task ID was specified, include it in the response
+                                return new ChatResponse
+                                {
+                                    Message = $"Based on current workload, I suggest assigning task #{taskId} to {suggestedAssignee.DisplayName} (current workload: {suggestedAssignee.CurrentWorkload} tasks). Do you want me to make this assignment?",
+                                    Data = new Dictionary<string, object>
+                                    {
+                                        { "suggestedAssignee", suggestedAssignee.DisplayName },
+                                        { "taskId", taskId },
+                                        { "currentWorkload", suggestedAssignee.CurrentWorkload }
+                                    }
+                                };
+                            }
+                            else
+                            {
+                                // Just suggesting who should get the next task
+                                return new ChatResponse
+                                {
+                                    Message = $"Based on current workload, {suggestedAssignee.DisplayName} would be a good candidate for the next task assignment (current workload: {suggestedAssignee.CurrentWorkload} tasks).",
+                                    Data = new Dictionary<string, object>
+                                    {
+                                        { "suggestedAssignee", suggestedAssignee.DisplayName },
+                                        { "currentWorkload", suggestedAssignee.CurrentWorkload }
+                                    }
+                                };
+                            }
+                        }
+                    }
+                    
+                    return new ChatResponse
+                    {
+                        Message = "I couldn't find information about team members to make a suggestion.",
+                        Success = false
+                    };
+                }
+                
+                // Current iteration information
+                if (lowercaseQuery.Contains("current sprint") || 
+                    lowercaseQuery.Contains("current iteration") || 
+                    lowercaseQuery.Contains("sprint details") ||
+                    lowercaseQuery.Contains("iteration details") ||
+                    lowercaseQuery.Contains("sprint information"))
+                {
+                    var sprintDetails = await GetSprintDetailsByIterationPathAsync(currentIterationPath);
+                    return new ChatResponse
+                    {
+                        Message = $"The current sprint is {sprintDetails.SprintName}, which runs from {sprintDetails.StartDate:MMM dd, yyyy} to {sprintDetails.EndDate:MMM dd, yyyy}. There are {sprintDetails.DaysRemaining} days remaining in this sprint.",
+                        Data = new Dictionary<string, object>
+                        {
+                            { "sprintName", sprintDetails.SprintName },
+                            { "startDate", sprintDetails.StartDate.ToString("yyyy-MM-dd") },
+                            { "endDate", sprintDetails.EndDate.ToString("yyyy-MM-dd") },
+                            { "daysRemaining", sprintDetails.DaysRemaining }
+                        }
+                    };
+                }
+                
+                // Work items count and status
+                if (lowercaseQuery.Contains("how many") && 
+                   (lowercaseQuery.Contains("tasks") || lowercaseQuery.Contains("work items")))
+                {
+                    var workItems = await GetWorkItemsAsync(currentIterationPath);
+                    
+                    // Count items by status
+                    var countsByStatus = workItems
+                        .GroupBy(w => w.Status)
+                        .Select(g => new { Status = g.Key, Count = g.Count() })
+                        .OrderByDescending(x => x.Count)
+                        .ToList();
+                        
+                    int totalCount = workItems.Count;
+                    int activeCount = workItems.Count(w => 
+                        !string.IsNullOrEmpty(w.Status) && 
+                        (w.Status.Contains("Active") || 
+                         w.Status.Contains("In Progress") || 
+                         w.Status.Contains("Dev-WIP") ||
+                         w.Status.Contains("Code Review")));
+                    
+                    string message = $"There are {totalCount} work items in the current sprint ({currentIterationPath}), with {activeCount} currently active. ";
+                    
+                    if (countsByStatus.Any())
+                    {
+                        message += "Breakdown by status: ";
+                        message += string.Join(", ", countsByStatus.Take(5).Select(s => $"{s.Status}: {s.Count}"));
+                        
+                        if (countsByStatus.Count > 5)
+                        {
+                            message += ", and others.";
+                        }
+                    }
+                    
+                    return new ChatResponse
+                    {
+                        Message = message,
+                        Data = new Dictionary<string, object>
+                        {
+                            { "totalCount", totalCount },
+                            { "activeCount", activeCount },
+                            { "statusBreakdown", countsByStatus.Select(s => new { s.Status, s.Count }).ToList() }
+                        }
+                    };
+                }
+                
+                // Work items by type
+                if (lowercaseQuery.Contains("by type") || 
+                   (lowercaseQuery.Contains("how many") && 
+                    (lowercaseQuery.Contains("bug") || 
+                     lowercaseQuery.Contains("requirement") || 
+                     lowercaseQuery.Contains("task") || 
+                     lowercaseQuery.Contains("user story"))))
+                {
+                    var workItems = await GetWorkItemsAsync(currentIterationPath);
+                    
+                    // Count items by type
+                    var countsByType = workItems
+                        .GroupBy(w => w.Type)
+                        .Select(g => new { Type = g.Key, Count = g.Count() })
+                        .OrderByDescending(x => x.Count)
+                        .ToList();
+                        
+                    string message = $"Work items by type in the current sprint ({currentIterationPath}): ";
+                    message += string.Join(", ", countsByType.Select(s => $"{s.Type}: {s.Count}"));
+                    
+                    return new ChatResponse
+                    {
+                        Message = message,
+                        Data = new Dictionary<string, object>
+                        {
+                            { "typeBreakdown", countsByType.Select(s => new { s.Type, s.Count }).ToList() }
+                        }
+                    };
+                }
+                
+                // Work items by assignee
+                if (lowercaseQuery.Contains("by assignee") || 
+                    lowercaseQuery.Contains("by person") ||
+                    lowercaseQuery.Contains("by team member") ||
+                    (lowercaseQuery.Contains("how many") && lowercaseQuery.Contains("assigned")))
+                {
+                    var workItems = await GetWorkItemsAsync(currentIterationPath);
+                    
+                    // Count items by assignee
+                    var countsByAssignee = workItems
+                        .GroupBy(w => string.IsNullOrEmpty(w.AssignedTo) ? "Unassigned" : w.AssignedTo)
+                        .Select(g => new { Assignee = g.Key, Count = g.Count() })
+                        .OrderByDescending(x => x.Count)
+                        .ToList();
+                        
+                    string message = $"Work items by assignee in the current sprint ({currentIterationPath}): ";
+                    message += string.Join(", ", countsByAssignee.Take(8).Select(s => $"{s.Assignee}: {s.Count}"));
+                    
+                    if (countsByAssignee.Count > 8)
+                    {
+                        message += ", and others.";
+                    }
+                    
+                    return new ChatResponse
+                    {
+                        Message = message,
+                        Data = new Dictionary<string, object>
+                        {
+                            { "assigneeBreakdown", countsByAssignee.Select(s => new { s.Assignee, s.Count }).ToList() }
+                        }
+                    };
+                }
+                
+                // Specific details for one person
+                if (lowercaseQuery.Contains("assigned to ") || 
+                    lowercaseQuery.Contains("tasks for ") ||
+                    lowercaseQuery.Contains("items for "))
+                {
+                    string personName = ExtractNameFromQuery(lowercaseQuery);
+                    if (!string.IsNullOrEmpty(personName))
+                    {
+                        var workItems = await GetWorkItemsAsync(currentIterationPath);
+                        
+                        // Filter items for the specified person
+                        var personItems = workItems
+                            .Where(w => !string.IsNullOrEmpty(w.AssignedTo) && 
+                                   w.AssignedTo.ToLower().Contains(personName))
+                            .ToList();
+                            
+                        if (personItems.Any())
+                        {
+                            // Group by status
+                            var statusBreakdown = personItems
+                                .GroupBy(w => w.Status)
+                                .Select(g => new { Status = g.Key, Count = g.Count() })
+                                .OrderByDescending(x => x.Count)
+                                .ToList();
+                                
+                            string message = $"{personItems.Count} work items are assigned to {personItems[0].AssignedTo} in the current sprint. ";
+                            message += $"Status breakdown: {string.Join(", ", statusBreakdown.Select(s => $"{s.Status}: {s.Count}"))}";
+                            
+                            return new ChatResponse
+                            {
+                                Message = message,
+                                Data = new Dictionary<string, object>
+                                {
+                                    { "assignee", personItems[0].AssignedTo },
+                                    { "totalCount", personItems.Count },
+                                    { "statusBreakdown", statusBreakdown.Select(s => new { s.Status, s.Count }).ToList() },
+                                    { "items", personItems.Take(10).Select(i => new { i.Id, i.Title, i.Status, i.Type }).ToList() }
+                                }
+                            };
+                        }
+                        else
+                        {
+                            return new ChatResponse
+                            {
+                                Message = $"No work items found assigned to anyone matching '{personName}' in the current sprint.",
+                                Success = false
+                            };
+                        }
+                    }
+                }
+                
+                // Blocked items
+                if (lowercaseQuery.Contains("blocked") || 
+                    lowercaseQuery.Contains("impediment") ||
+                    lowercaseQuery.Contains("issue"))
+                {
+                    var workItems = await GetWorkItemsAsync(currentIterationPath);
+                    
+                    // Find blocked items
+                    var blockedItems = workItems
+                        .Where(w => !string.IsNullOrEmpty(w.Status) && 
+                               (w.Status.ToLower().Contains("blocked") || 
+                                w.Status.ToLower().Contains("impediment")))
+                        .ToList();
+                        
+                    if (blockedItems.Any())
+                    {
+                        string message = $"There are {blockedItems.Count} blocked items in the current sprint: ";
+                        message += string.Join(", ", blockedItems.Take(5).Select(b => $"{b.Id}: {b.Title}"));
+                        
+                        if (blockedItems.Count > 5)
+                        {
+                            message += ", and others.";
+                        }
+                        
+                        return new ChatResponse
+                        {
+                            Message = message,
+                            Data = new Dictionary<string, object>
+                            {
+                                { "blockedCount", blockedItems.Count },
+                                { "blockedItems", blockedItems.Take(10).Select(i => new { i.Id, i.Title, i.Status, i.AssignedTo }).ToList() }
+                            }
+                        };
+                    }
+                    else
+                    {
+                        return new ChatResponse
+                        {
+                            Message = "Good news! There are no blocked items in the current sprint.",
+                            Data = new Dictionary<string, object>
+                            {
+                                { "blockedCount", 0 }
+                            }
+                        };
+                    }
+                }
+                
+                // Sprint progress/completion
+                if (lowercaseQuery.Contains("progress") || 
+                    lowercaseQuery.Contains("completion") ||
+                    lowercaseQuery.Contains("how far") ||
+                    lowercaseQuery.Contains("status of sprint"))
+                {
+                    var workItems = await GetWorkItemsAsync(currentIterationPath);
+                    var sprintDetails = await GetSprintDetailsByIterationPathAsync(currentIterationPath);
+                    
+                    // Calculate completion percentage
+                    int totalItems = workItems.Count;
+                    int completedItems = workItems.Count(w => 
+                        !string.IsNullOrEmpty(w.Status) && 
+                        (w.Status.Contains("Done") || 
+                         w.Status.Contains("Completed") || 
+                         w.Status.Contains("Closed")));
+                    
+                    double completionPercentage = totalItems > 0 
+                        ? Math.Round((double)completedItems / totalItems * 100, 1) 
+                        : 0;
+                        
+                    // Calculate time percentage
+                    double totalDays = (sprintDetails.EndDate - sprintDetails.StartDate).TotalDays;
+                    double daysElapsed = totalDays - sprintDetails.DaysRemaining;
+                    double timePercentage = totalDays > 0 
+                        ? Math.Round(daysElapsed / totalDays * 100, 1) 
+                        : 0;
+                    
+                    string message = $"Sprint progress: {completedItems} of {totalItems} work items completed ({completionPercentage}%). ";
+                    message += $"Time progress: {timePercentage}% of sprint duration has elapsed ({Math.Round(daysElapsed, 1)} days out of {Math.Round(totalDays, 1)} total days).";
+                    
+                    if (timePercentage > completionPercentage + 10)
+                    {
+                        message += " The sprint appears to be behind schedule.";
+                    }
+                    else if (completionPercentage > timePercentage + 10)
+                    {
+                        message += " The sprint appears to be ahead of schedule.";
+                    }
+                    else
+                    {
+                        message += " The sprint appears to be on track.";
+                    }
+                    
+                    return new ChatResponse
+                    {
+                        Message = message,
+                        Data = new Dictionary<string, object>
+                        {
+                            { "totalItems", totalItems },
+                            { "completedItems", completedItems },
+                            { "completionPercentage", completionPercentage },
+                            { "timePercentage", timePercentage },
+                            { "daysElapsed", daysElapsed },
+                            { "totalDays", totalDays }
+                        }
+                    };
+                }
+                
+                // Fallback for unrecognized queries
+                return new ChatResponse
+                {
+                    Message = "I can help you with information about your current sprint such as work items, task distribution, team progress, or specific tasks. Try asking about 'current sprint details', 'task distribution', 'how many tasks in this sprint', 'tasks by assignee', 'assign task 123 to John', or 'sprint progress'.",
+                    Success = true
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing chat query: {Query}", query);
+                return new ChatResponse
+                {
+                    Message = "I'm sorry, I encountered an error while processing your request. Please try again later.",
+                    Success = false
+                };
+            }
+        }
+        
+        // Helper method to extract a task ID from a query
+        private int ExtractTaskIdFromQuery(string query)
+        {
+            // Common patterns where task ID might appear
+            string[] patterns = {
+                "task #",
+                "task#",
+                "task ",
+                "item #",
+                "item#",
+                "item ",
+                "work item #",
+                "work item ",
+                "workitem #",
+                "workitem ",
+                "id ",
+                "id#",
+                "#"
+            };
+            
+            foreach (var pattern in patterns)
+            {
+                int index = query.IndexOf(pattern);
+                if (index >= 0)
+                {
+                    // Extract the text after the pattern
+                    string restOfText = query.Substring(index + pattern.Length);
+                    
+                    // Look for a number at the start of the rest of the text
+                    var match = System.Text.RegularExpressions.Regex.Match(restOfText, @"^\d+");
+                    if (match.Success)
+                    {
+                        // Found a task ID
+                        if (int.TryParse(match.Value, out int taskId))
+                        {
+                            return taskId;
+                        }
+                    }
+                }
+            }
+            
+            // If specific patterns failed, try a more generic approach to find any number in the text
+            var numberMatches = System.Text.RegularExpressions.Regex.Matches(query, @"\d+");
+            if (numberMatches.Count > 0)
+            {
+                foreach (System.Text.RegularExpressions.Match match in numberMatches)
+                {
+                    if (int.TryParse(match.Value, out int taskId) && taskId > 0)
+                    {
+                        return taskId;
+                    }
+                }
+            }
+            
+            return 0; // No task ID found
+        }
+        
+        // Helper method to extract a person's name from a query
+        private string ExtractNameFromQuery(string query)
+        {
+            string[] patterns = {
+                "assigned to ",
+                "assign to ",
+                "assign ",
+                "allocate to ",
+                "tasks for ",
+                "items for "
+            };
+            
+            foreach (var pattern in patterns)
+            {
+                int index = query.IndexOf(pattern);
+                if (index >= 0)
+                {
+                    string name = query.Substring(index + pattern.Length).Trim();
+                    // Remove trailing punctuation or unnecessary words
+                    name = name.TrimEnd('.', '?', '!', ' ');
+                    
+                    // If query contains additional phrases after the name, try to extract just the name
+                    string[] endMarkers = { " and ", " with ", " who ", " that ", " which ", " to ", " for " };
+                    foreach (var marker in endMarkers)
+                    {
+                        int endIndex = name.IndexOf(marker);
+                        if (endIndex > 0)
+                        {
+                            name = name.Substring(0, endIndex);
+                        }
+                    }
+                    
+                    return name;
+                }
+            }
+            
+            return string.Empty;
         }
     }
 } 

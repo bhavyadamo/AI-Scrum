@@ -76,4 +76,15 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+}
+
+export interface ChatQuery {
+  message: string;
+  currentIterationPath: string;
+}
+
+export interface ChatResponse {
+  message: string;
+  success: boolean;
+  data?: any;
 } 

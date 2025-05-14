@@ -43,6 +43,37 @@ namespace AI_Scrum.Services
             }
         }
 
+        public async Task<SprintOverview> GetSprintDetailsByIterationPathAsync(string iterationPath)
+        {
+            try
+            {
+                _logger.LogInformation("Getting sprint details for iteration path {IterationPath}", iterationPath);
+                return await _azureDevOpsService.GetSprintDetailsByIterationPathAsync(iterationPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting sprint details for iteration path {IterationPath}", iterationPath);
+                
+                // Fallback for development/demo
+                // Extract sprint name from iteration path
+                string sprintName = iterationPath;
+                if (iterationPath.Contains("\\"))
+                {
+                    sprintName = iterationPath.Split('\\').Last();
+                }
+                
+                var now = DateTime.Now;
+                return new SprintOverview
+                {
+                    SprintName = sprintName,
+                    StartDate = now.AddDays(-10),
+                    EndDate = now.AddDays(4),
+                    DaysRemaining = 4,
+                    IterationPath = iterationPath
+                };
+            }
+        }
+
         public async Task<SprintSummary> GetSprintSummaryAsync(string iterationPath)
         {
             try

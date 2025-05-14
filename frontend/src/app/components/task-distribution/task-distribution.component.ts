@@ -898,21 +898,34 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    */
   getStatusClass(status: string | undefined): string {
     if (!status) {
-      return 'bg-secondary'; // Default for undefined status
+      return 'status-to-do'; // Default for undefined status
     }
     
     const statusLower = status.toLowerCase();
     
-    if (statusLower.includes('progress') || statusLower === 'active') {
-      return 'bg-primary';
-    } else if (statusLower === 'completed' || statusLower === 'done' || statusLower === 'closed') {
-      return 'bg-success';
+    // Return the appropriate custom status class based on requested colors
+    if (statusLower === 'active') {
+      return 'status-active'; // Yellow
+    } else if (statusLower === 'completed' || statusLower === 'done' || statusLower === 'closed' || statusLower === 'dev complete') {
+      return 'status-dev-complete'; // Green
     } else if (statusLower === 'blocked') {
-      return 'bg-danger';
+      return 'status-blocked'; // Red
+    } else if (statusLower === 'dev-new' || statusLower === 'dev new') {
+      return 'status-dev-new'; // Blue
+    } else if (statusLower === 'code review') {
+      return 'status-code-review'; // Purple
+    } else if (statusLower === 'proposed') {
+      return 'status-proposed'; // Gray
+    } else if (statusLower === 'planned') {
+      return 'status-planned'; // Orange
+    } else if (statusLower === 'resolved') {
+      return 'status-resolved'; // Teal
+    } else if (statusLower.includes('progress')) {
+      return 'status-in-progress'; // Cyan
     } else if (statusLower === 'to do' || statusLower === 'new') {
-      return 'bg-secondary';
+      return 'status-to-do'; // Gray
     } else {
-      return 'bg-info';
+      return 'status-to-do'; // Default for any other status
     }
   }
 
