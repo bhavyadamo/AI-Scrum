@@ -92,7 +92,7 @@ namespace AI_Scrum.Services
                 
                 // Read configuration values or use defaults
                 // If configuration values aren't set, use these defaults
-                var historyMonths = _configuration.GetValue<int>("TaskAssignment:HistoryMonths", 6);
+                var historyMonths = _configuration.GetValue<int>("TaskAssignment:HistoryMonths", 3); // Changed from 6 to 3 months
                 var devNewStatusValues = _configuration.GetSection("TaskAssignment:DevNewStatuses").Get<string[]>() ?? 
                     new[] { "Dev-New", "dev-new", "Dev New", "Development - New", "New Development" };
                 var completeStatusValues = _configuration.GetSection("TaskAssignment:CompleteStatuses").Get<string[]>() ?? 
@@ -111,10 +111,38 @@ namespace AI_Scrum.Services
                 // Get ALL Dev-New tasks regardless of assignment status
                 var allNewDevTasks = tasks
                     .Where(t => t.Status != null && 
-                           devNewStatuses.Contains(t.Status.Trim(), StringComparer.OrdinalIgnoreCase))
+                           (devNewStatuses.Contains(t.Status.Trim(), StringComparer.OrdinalIgnoreCase) || 
+                            t.Status.Trim().ToLower().Contains("dev-new") ||
+                            t.Status.Trim().ToLower().Contains("dev new")))
                     .ToList();
                 
                 _logger.LogInformation("Found {Count} total Dev-New tasks", allNewDevTasks.Count);
+                
+                // If there are no tasks with the exact status strings, log detailed information about available statuses
+                if (allNewDevTasks.Count == 0)
+                {
+                    var availableStatuses = tasks
+                        .Where(t => !string.IsNullOrEmpty(t.Status))
+                        .Select(t => t.Status.Trim())
+                        .Distinct()
+                        .ToList();
+                        
+                    _logger.LogWarning("No Dev-New tasks found. Available statuses in this iteration: {Statuses}", 
+                        string.Join(", ", availableStatuses));
+                        
+                    // Fall back to a more relaxed search if needed
+                    if (availableStatuses.Any(s => s.ToLower().Contains("new") || s.ToLower().Contains("dev")))
+                    {
+                        _logger.LogInformation("Trying fallback with relaxed status matching for 'new' or 'dev'");
+                        allNewDevTasks = tasks
+                            .Where(t => t.Status != null && 
+                                (t.Status.Trim().ToLower().Contains("new") || 
+                                 t.Status.Trim().ToLower().Contains("dev")))
+                            .ToList();
+                            
+                        _logger.LogInformation("Fallback found {Count} potential Dev-New tasks", allNewDevTasks.Count);
+                    }
+                }
                 
                 // Log additional information about assigned vs unassigned
                 var unassignedDevNewTasks = allNewDevTasks.Where(t => string.IsNullOrEmpty(t.AssignedTo)).ToList();
@@ -132,18 +160,18 @@ namespace AI_Scrum.Services
                 // Get all tasks to analyze history and current load
                 var allTasks = tasks.ToList();
                 
-                // Calculate monthly breakdowns for the last 6 months
+                // Calculate monthly breakdowns for the defined number of months
                 var today = DateTime.Now;
                 var monthlyBreakdowns = new List<(DateTime start, DateTime end, double weight)>();
                 
-                // Create 6 monthly breakdowns with decreasing weights
+                // Create monthly breakdowns with decreasing weights
                 for (int i = 0; i < historyMonths; i++)
                 {
                     var monthEnd = today.AddMonths(-i);
                     var monthStart = new DateTime(monthEnd.Year, monthEnd.Month, 1);
-                    // Weight decreases by 0.2 each month back
-                    // Most recent month has weight 1.0, previous month 0.8, etc.
-                    var weight = Math.Max(0.2, 1.0 - (i * 0.2)); 
+                    // Weight decreases by 0.25 each month back - higher emphasis on recent months
+                    // Most recent month has weight 1.0, previous month 0.75, etc.
+                    var weight = Math.Max(0.25, 1.0 - (i * 0.25)); 
                     monthlyBreakdowns.Add((monthStart, monthEnd, weight));
                 }
                 
@@ -156,6 +184,9 @@ namespace AI_Scrum.Services
                 // Count specific task types per developer with weighted counts
                 var developerTaskCounts = new Dictionary<string, Dictionary<string, double>>();
                 var developerDevNewCounts = new Dictionary<string, int>();
+                
+                // Track expertise by task type per developer from completed tasks in recent history
+                var developerExpertiseByType = new Dictionary<string, Dictionary<string, int>>();
 
                 // Initialize counters
                 foreach (var developer in developerTasks.Keys)
@@ -172,6 +203,9 @@ namespace AI_Scrum.Services
                         ["Total"] = 0,
                         ["WeightedTotal"] = 0
                     };
+                    
+                    // Initialize expertise tracker for this developer
+                    developerExpertiseByType[developer] = new Dictionary<string, int>();
                     
                     // Count tasks by status
                     foreach (var task in devTasks)
@@ -207,6 +241,17 @@ namespace AI_Scrum.Services
                             developerTaskCounts[developer]["Complete"]++;
                             // Low weight for completed tasks
                             developerTaskCounts[developer]["WeightedTotal"] += 0.1;
+                            
+                            // Track expertise based on completed tasks by type
+                            if (!string.IsNullOrEmpty(task.Type))
+                            {
+                                string taskType = task.Type.Trim();
+                                if (!developerExpertiseByType[developer].ContainsKey(taskType))
+                                {
+                                    developerExpertiseByType[developer][taskType] = 0;
+                                }
+                                developerExpertiseByType[developer][taskType]++;
+                            }
                         }
                     }
                     
@@ -257,15 +302,11 @@ namespace AI_Scrum.Services
                 // Calculate developer expertise scores
                 var developerScores = new Dictionary<string, Dictionary<int, double>>();
                 var developerInfo = new Dictionary<string, string>();
-                // Track expertise per developer
-                var developerExpertise = new Dictionary<string, int>();
-
+                
                 foreach (var developer in developerTasks.Keys)
                 {
                     var devTasks = developerTasks[developer];
                     developerScores[developer] = new Dictionary<int, double>();
-                    // Initialize expertise counter for this developer
-                    developerExpertise[developer] = 0;
                     
                     // For each Dev-New task, calculate a score for this developer
                     foreach (var newTask in allNewDevTasks)
@@ -281,43 +322,20 @@ namespace AI_Scrum.Services
                         
                         double score = 0;
                         
-                        // Check task type history
-                        int taskTypeMatches = 0;
-                        
-                        // PRIORITY 1: Monthly History Analysis for this specific task type
-                        foreach (var month in monthlyBreakdowns)
+                        // PRIORITY 1: Expertise based on task type (highest priority)
+                        if (!string.IsNullOrEmpty(newTask.Type) && 
+                            developerExpertiseByType.ContainsKey(developer) &&
+                            developerExpertiseByType[developer].ContainsKey(newTask.Type))
                         {
-                            // Tasks of similar type completed by this developer
-                            var matchingTasks = devTasks
-                                .Where(t => t.Status != null && 
-                                       completeStatuses.Contains(t.Status.Trim(), StringComparer.OrdinalIgnoreCase) && 
-                                       t.Type == newTask.Type)
-                                .ToList();
+                            // Significant boost for developers with expertise in this task type
+                            int expertiseLevel = developerExpertiseByType[developer][newTask.Type];
+                            score += 50 * Math.Min(expertiseLevel, 5); // Cap at 5 for maximum 250 points
                             
-                            // Higher score for more recent similar completed tasks
-                            score += matchingTasks.Count * 30 * month.weight;
-                            taskTypeMatches += matchingTasks.Count;
+                            _logger.LogInformation("Developer {Developer} has expertise level {Level} in {TaskType}", 
+                                developer, expertiseLevel, newTask.Type);
                         }
                         
-                        // Add to developer's expertise count
-                        if (taskTypeMatches > 0)
-                        {
-                            developerExpertise[developer] += taskTypeMatches;
-                        }
-                        
-                        // PRIORITY 2: Task completion ratio - developers who complete tasks get priority
-                        double completionRatio = 0;
-                        
-                        if (developerTaskCounts[developer]["Total"] > 0)
-                        {
-                            completionRatio = developerTaskCounts[developer]["Complete"] / 
-                                               developerTaskCounts[developer]["Total"];
-                            
-                            // Bonus points for completing tasks
-                            score += completionRatio * 40;
-                        }
-                        
-                        // PRIORITY 3: Load Balancing - current workload
+                        // PRIORITY 2: Load Balancing - current workload (high priority)
                         var currentWeightedLoad = developerTaskCounts[developer]["WeightedTotal"];
                         
                         // Penalize developers with more tasks than average
@@ -326,21 +344,32 @@ namespace AI_Scrum.Services
                             // Progressive penalty for more tasks beyond average
                             var loadFactor = 1 + ((currentWeightedLoad - avgWeightedTaskCount) / 
                                                Math.Max(1, avgWeightedTaskCount));
-                            score -= 25 * loadFactor;
+                            score -= 60 * loadFactor; // Increased penalty for overloaded developers
                         }
                         else if (currentWeightedLoad < avgWeightedTaskCount)
                         {
                             // Boost for developers with fewer tasks than average
-                            score += 15 * ((avgWeightedTaskCount - currentWeightedLoad) / 
+                            score += 40 * ((avgWeightedTaskCount - currentWeightedLoad) / 
                                         Math.Max(1, avgWeightedTaskCount));
                             
                             // PRIORITY BOOST: Give significant bonus to developers with only 1 task
-                            // This implements the requirement to prioritize devs with just 1 task first
                             if (developerTaskCounts[developer]["Total"] <= 1)
                             {
-                                score += 50; // Significant bonus for developers with just 1 task
+                                score += 80; // Significant bonus for developers with just 1 task
                                 _logger.LogInformation("Developer {Developer} has only 1 task, adding priority boost", developer);
                             }
+                        }
+                        
+                        // PRIORITY 3: Task completion ratio - developers who complete tasks get priority
+                        double completionRatio = 0;
+                        
+                        if (developerTaskCounts[developer]["Total"] > 0)
+                        {
+                            completionRatio = developerTaskCounts[developer]["Complete"] / 
+                                               developerTaskCounts[developer]["Total"];
+                            
+                            // Bonus points for completing tasks
+                            score += completionRatio * 30;
                         }
                         
                         // If this task is already assigned to this developer, add a stability bonus
@@ -354,8 +383,15 @@ namespace AI_Scrum.Services
                     }
                     
                     // Create explanation of assignment logic for this developer
-                    string expertise = developerExpertise[developer] > 0 ? 
-                        $"past expertise ({developerExpertise[developer]} similar tasks)" : "no specific expertise";
+                    // Get their top expertise areas
+                    string expertise = "no specific expertise";
+                    if (developerExpertiseByType.ContainsKey(developer) && developerExpertiseByType[developer].Any())
+                    {
+                        var topExpertise = developerExpertiseByType[developer]
+                            .OrderByDescending(kv => kv.Value)
+                            .First();
+                        expertise = $"expert in {topExpertise.Key} ({topExpertise.Value} tasks in 3 months)";
+                    }
                     
                     string workload;
                     double weightedLoad = developerTaskCounts[developer]["WeightedTotal"];
@@ -363,14 +399,14 @@ namespace AI_Scrum.Services
                     
                     if (weightedLoad < avgWeightedTaskCount * 0.7)
                         workload = isPriority ? 
-                            $"priority (only 1 task), below avg load" : 
-                            $"below avg load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)} avg)";
+                            $"low load priority" : 
+                            $"low load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)})";
                     else if (weightedLoad <= avgWeightedTaskCount * 1.3)
                         workload = isPriority ? 
-                            $"priority (only 1 task), average load" : 
-                            $"average load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)} avg)";
+                            $"avg load priority" : 
+                            $"avg load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)})";
                     else
-                        workload = $"high load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)} avg)";
+                        workload = $"high load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)})";
                     
                     developerInfo[developer] = $"{expertise}, {workload}";
                 }
@@ -388,7 +424,7 @@ namespace AI_Scrum.Services
                 
                 foreach (var newTask in sortedTasks)
                 {
-                    // Skip tasks that aren't from overloaded developers
+                    // Skip tasks that aren't from overloaded developers or unassigned
                     if (!string.IsNullOrEmpty(newTask.AssignedTo) && 
                         !overloadedDevelopers.Contains(newTask.AssignedTo))
                     {
@@ -410,8 +446,9 @@ namespace AI_Scrum.Services
                             int batchCount = batchAssignments.GetValueOrDefault(developer, 0);
                             if (batchCount > 0)
                             {
-                                // Reduce score by 15% for each task already assigned in this batch
-                                score *= Math.Max(0.5, 1.0 - (batchCount * 0.15));
+                                // Reduce score by 20% for each task already assigned in this batch
+                                // This helps ensure better load distribution in the current batch
+                                score *= Math.Max(0.4, 1.0 - (batchCount * 0.2));
                             }
                             
                             if (score > bestMatch.Value)
@@ -549,17 +586,29 @@ namespace AI_Scrum.Services
                 foreach (var suggestion in allSuggestions)
                 {
                     // Extract just the developer name from the suggestion value
-                    // Format is typically "Name (explanation)"
-                    string developerName = suggestion.Value;
+                    // Format is typically "Developer Name (expertise info, workload info)"
+                    string developerName;
                     if (suggestion.Value.Contains("("))
                     {
                         developerName = suggestion.Value.Substring(0, suggestion.Value.IndexOf('(')).Trim();
+                    }
+                    else
+                    {
+                        // Fallback - take the first word as the name if no parentheses are found
+                        developerName = suggestion.Value.Split(' ')[0];
                     }
                     
                     // Check if this developer is in our R&D team members list
                     if (teamMemberLookup.Contains(developerName.ToLower()))
                     {
                         filteredSuggestions[suggestion.Key] = suggestion.Value;
+                        _logger.LogInformation("Keeping suggestion for task {TaskId}: {Developer} is an R&D team member", 
+                            suggestion.Key, developerName);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Filtering out suggestion for task {TaskId}: {Developer} is not an R&D team member", 
+                            suggestion.Key, developerName);
                     }
                 }
                 
@@ -596,7 +645,21 @@ namespace AI_Scrum.Services
                 foreach (var suggestion in suggestions)
                 {
                     int taskId = int.Parse(suggestion.Key);
-                    string assigneeName = suggestion.Value.Split(' ')[0]; // Extract just the name
+                    
+                    // Extract just the developer name from the suggestion
+                    // Format is typically "Developer Name (expertise, workload)"
+                    string assigneeName;
+                    if (suggestion.Value.Contains("("))
+                    {
+                        assigneeName = suggestion.Value.Substring(0, suggestion.Value.IndexOf('(')).Trim();
+                    }
+                    else
+                    {
+                        assigneeName = suggestion.Value.Split(' ')[0]; // Fallback to simple extraction
+                    }
+                    
+                    _logger.LogInformation("Assigning task {TaskId} to {Developer} based on auto-assignment criteria", 
+                        taskId, assigneeName);
                     
                     var updates = new Dictionary<string, object>
                     {
@@ -605,11 +668,13 @@ namespace AI_Scrum.Services
                     
                     if (await _azureDevOpsService.UpdateWorkItemAsync(taskId, updates))
                     {
-                        _logger.LogInformation("Task {TaskId} auto-assigned to {Developer}", taskId, assigneeName);
+                        _logger.LogInformation("Task {TaskId} auto-assigned to {Developer} successfully", 
+                            taskId, assigneeName);
                     }
                     else
                     {
-                        _logger.LogError("Failed to auto-assign task {TaskId} to {Developer}", taskId, assigneeName);
+                        _logger.LogError("Failed to auto-assign task {TaskId} to {Developer}", 
+                            taskId, assigneeName);
                         success = false;
                     }
                 }

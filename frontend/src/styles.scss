@@ -45,25 +45,24 @@ h6 { font-size: 1.1rem; }
 
 /* Global overrides for the menu font size */
 .navbar .navbar-nav .nav-item .nav-link {
-  font-size: 1.3rem !important;
+  font-size: 1.1rem !important;
   font-weight: 500;
-  letter-spacing: 0.01rem;
 }
 
 /* Make navbar brand larger */
 .navbar .navbar-brand {
-  font-size: 1.5rem !important;
+  font-size: 1.3rem !important;
 }
 
 /* Adjust icons in navbar */
 .navbar .nav-link i {
-  font-size: 1.35rem;
+  font-size: 1.15rem;
 }
 
 /* Responsive adjustments */
 @media (max-width: 991.98px) {
   .navbar .navbar-nav .nav-item .nav-link {
-    font-size: 1.35rem !important;
-    padding: 0.8rem 1.1rem;
+    font-size: 1.15rem !important;
+    padding: 0.7rem 1rem;
   }
 } 

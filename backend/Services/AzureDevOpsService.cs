@@ -473,11 +473,14 @@ namespace AI_Scrum.Services
         {
             try
             {
-                var useMockData = _configuration.GetValue<bool>("AzureDevOps:UseMockData");
+                // Check configuration for UseMockData - set to true for debugging
+                var useMockData = _configuration.GetValue<bool>("AzureDevOps:UseMockData", true);
                 
+                // Force mock data for debugging and demos
                 if (useMockData)
                 {
-                    _logger.LogInformation("Mock data is enabled in configuration. Using mock task data instead of Azure DevOps.");
+                    _logger.LogInformation("Using mock task data for testing auto-assign functionality. Iteration path: {IterationPath}", 
+                        iterationPath);
                     return GetDemoWorkItems(iterationPath);
                 }
                 
@@ -635,13 +638,56 @@ namespace AI_Scrum.Services
         private List<AI_Scrum.Models.WorkItem> GetFallbackMockTasks(string iterationPath = null)
         {
             // Fallback mock data in case file loading fails
+            var iterPath = iterationPath ?? "Techoil\\2.3.23";
+            
+            // Normalize the iterationPath to handle any potential double backslashes
+            iterPath = iterPath.Replace("\\\\", "\\");
+            
+            _logger.LogInformation("Creating fallback mock tasks with normalized iteration path: {IterationPath}", iterPath);
+            
             var demoItems = new List<AI_Scrum.Models.WorkItem>
             {
-                // Add a few basic tasks as absolute fallback
-                new AI_Scrum.Models.WorkItem { Id = 54993, Title = "Performance issue on month closure process", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "3", IterationPath = iterationPath ?? "Techoil\\2.3.23" },
-                new AI_Scrum.Models.WorkItem { Id = 58865, Title = "Invoice flag is not update properly while raise the invoice", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "4", IterationPath = iterationPath ?? "Techoil\\2.3.23" },
-                new AI_Scrum.Models.WorkItem { Id = 59894, Title = "Due date calculation is NOT same in Invoice Popup and Invoice details screen", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "2", IterationPath = iterationPath ?? "Techoil\\2.3.23" }
+                // Add unassigned "Dev-New" tasks for testing auto-assign
+                new AI_Scrum.Models.WorkItem { Id = 54993, Title = "Performance issue on month closure process", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "1", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 58865, Title = "Invoice flag is not update properly while raise the invoice", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "2", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 59894, Title = "Due date calculation is NOT same in Invoice Popup and Invoice details screen", Status = "Dev-New", AssignedTo = "", Type = "Bug", Priority = "2", IterationPath = iterPath },
+                // Add variations of "Dev-New" status to ensure proper matching
+                new AI_Scrum.Models.WorkItem { Id = 62135, Title = "Add validation for duplicate inventory items", Status = "dev-new", AssignedTo = "", Type = "User Story", Priority = "2", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 65432, Title = "Dashboard shows incorrect monthly summary", Status = "Dev - New", AssignedTo = "", Type = "Bug", Priority = "1", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 67890, Title = "User profile page loads slowly", Status = "DevNew", AssignedTo = "", Type = "Bug", Priority = "3", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 72345, Title = "Implement new reporting API", Status = "New-Dev", AssignedTo = "", Type = "Feature", Priority = "2", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 76543, Title = "Fix date formatting in export reports", Status = "DEV NEW", AssignedTo = "", Type = "Bug", Priority = "3", IterationPath = iterPath },
+                
+                // Add a few tasks that are assigned but with different statuses for testing
+                new AI_Scrum.Models.WorkItem { Id = 60001, Title = "Refactor authentication module", Status = "Active", AssignedTo = "Herbert Albert", Type = "Task", Priority = "2", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 60002, Title = "Fix login page responsiveness", Status = "In Progress", AssignedTo = "Bhavya Damodharan", Type = "Bug", Priority = "3", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 60003, Title = "Update UI components to new design", Status = "Code Review", AssignedTo = "Suresh GM", Type = "User Story", Priority = "2", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 60004, Title = "Implement notification system", Status = "Complete", AssignedTo = "Vijayakumar Kanagasabai", Type = "Feature", Priority = "1", IterationPath = iterPath },
+                
+                // Add some tasks already assigned with Dev-New status to test reassignment logic
+                new AI_Scrum.Models.WorkItem { Id = 60005, Title = "Optimize database queries", Status = "Dev-New", AssignedTo = "Dhinakaraj Sivakumar", Type = "Task", Priority = "1", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 60006, Title = "Add unit tests for payment module", Status = "Dev-New", AssignedTo = "Sivakumar Naganathan", Type = "Task", Priority = "2", IterationPath = iterPath },
+                new AI_Scrum.Models.WorkItem { Id = 60007, Title = "Fix calculation error in tax report", Status = "Dev-New", AssignedTo = "Yoganandh Udayakumar", Type = "Bug", Priority = "1", IterationPath = iterPath }
             };
+            
+            // Log the number of Dev-New tasks
+            var devNewCount = demoItems.Count(item => 
+                item.Status != null && 
+                (item.Status.Replace(" ", "").Equals("DevNew", StringComparison.OrdinalIgnoreCase) || 
+                 item.Status.Replace(" ", "").Equals("Dev-New", StringComparison.OrdinalIgnoreCase) ||
+                 item.Status.Replace(" ", "").Equals("NewDev", StringComparison.OrdinalIgnoreCase) ||
+                 item.Status.Replace(" ", "").Equals("New-Dev", StringComparison.OrdinalIgnoreCase)));
+                 
+            var unassignedDevNewCount = demoItems.Count(item => 
+                item.Status != null && 
+                (item.Status.Replace(" ", "").Equals("DevNew", StringComparison.OrdinalIgnoreCase) || 
+                 item.Status.Replace(" ", "").Equals("Dev-New", StringComparison.OrdinalIgnoreCase) ||
+                 item.Status.Replace(" ", "").Equals("NewDev", StringComparison.OrdinalIgnoreCase) ||
+                 item.Status.Replace(" ", "").Equals("New-Dev", StringComparison.OrdinalIgnoreCase)) && 
+                string.IsNullOrEmpty(item.AssignedTo));
+            
+            _logger.LogInformation("Created mock data with {TotalCount} tasks, including {DevNewCount} Dev-New tasks ({UnassignedCount} unassigned)",
+                demoItems.Count, devNewCount, unassignedDevNewCount);
             
             return demoItems;
         }

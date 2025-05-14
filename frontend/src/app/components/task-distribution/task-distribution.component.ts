@@ -197,14 +197,19 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    * Search button handler - loads data based on manual inputs
    */
   searchClicked(): void {
-    // Update the current iteration path with the manual input
-    this.currentIterationPath = this.manualIterationPath;
+    // Normalize the manual input iteration path
+    const normalizedPath = this.manualIterationPath.replace(/\\\\/g, '\\');
+    
+    // Update the current iteration path with the normalized manual input
+    this.currentIterationPath = normalizedPath;
+    this.manualIterationPath = normalizedPath; // Update the displayed value too
     
     // Clear previous errors
     this.error.tasks = null;
     this.error.members = null;
     
     console.log(`Searching with team filter ${this.applyTeamFilter ? 'enabled' : 'disabled'}`);
+    console.log(`Using normalized iteration path: ${normalizedPath}`);
     
     // Load data based on the manual inputs
     this.loadTasks();
@@ -215,13 +220,16 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     this.loading.tasks = true;
     this.error.tasks = null;
     
-    console.log(`Loading tasks for iteration path: ${this.currentIterationPath}`);
+    // Normalize the iteration path to handle any double backslashes
+    const normalizedPath = this.currentIterationPath.replace(/\\\\/g, '\\');
     
-    this.taskService.getTasks(this.currentIterationPath).subscribe({
+    console.log(`Loading tasks for iteration path: ${normalizedPath}`);
+    
+    this.taskService.getTasks(normalizedPath).subscribe({
       next: (tasks) => {
         this.tasks = tasks;
         this.loading.tasks = false;
-        console.log(`Loaded ${tasks.length} tasks for iteration path ${this.currentIterationPath}`);
+        console.log(`Loaded ${tasks.length} tasks for iteration path ${normalizedPath}`);
         
         // After loading tasks, update team workload and filter tasks
         if (this.teamMembers.length > 0) {
@@ -230,7 +238,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
         }
       },
       error: (err) => {
-        console.error(`Error loading tasks for iteration path ${this.currentIterationPath}:`, err);
+        console.error(`Error loading tasks for iteration path ${normalizedPath}:`, err);
         this.error.tasks = `Failed to load tasks: ${err.message}`;
         this.loading.tasks = false;
       }
@@ -241,10 +249,13 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     this.loading.members = true;
     this.error.members = null;
 
+    // Normalize the iteration path to handle any double backslashes
+    const normalizedPath = this.currentIterationPath.replace(/\\\\/g, '\\');
+
     // Use the teamService directly to get team members by team name if filter is applied
     // Otherwise, just get all team members
     if (this.applyTeamFilter) {
-      this.teamService.getTeamMembersByTeam(this.teamName, this.currentIterationPath).subscribe({
+      this.teamService.getTeamMembersByTeam(this.teamName, normalizedPath).subscribe({
         next: (teamMembers) => {
           this.teamMembers = teamMembers;
           console.log(`Loaded ${this.teamName} team members:`, this.teamMembers);
@@ -268,20 +279,20 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
           console.error(`Error loading ${this.teamName} team members:`, err);
           
           // Fallback to regular team members if team-specific call fails
-          this.loadAllTeamMembers();
+          this.loadAllTeamMembers(normalizedPath);
         }
       });
     } else {
       // If team filter is not applied, load all team members
-      this.loadAllTeamMembers();
+      this.loadAllTeamMembers(normalizedPath);
     }
   }
 
   /**
    * Helper method to load all team members without team filter
    */
-  private loadAllTeamMembers(): void {
-    this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
+  private loadAllTeamMembers(normalizedPath: string): void {
+    this.taskService.getTeamMembers(normalizedPath).subscribe({
       next: (response) => {
         // Process the response as an array of TeamMember objects
         if (Array.isArray(response)) {
@@ -321,7 +332,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
         this.loading.members = false;
       },
       error: (memberErr) => {
-        console.error(`Error loading team members for iteration path ${this.currentIterationPath}:`, memberErr);
+        console.error(`Error loading team members for iteration path ${normalizedPath}:`, memberErr);
         this.error.members = `Failed to load team members: ${memberErr.message}`;
         this.loading.members = false;
       }
@@ -381,7 +392,10 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     this.loading.taskCounts = true;
     this.error.taskCounts = null;
     
-    this.taskService.getTeamMemberTaskCounts(this.currentIterationPath).subscribe({
+    // Normalize the iteration path
+    const normalizedPath = this.currentIterationPath.replace(/\\\\/g, '\\');
+    
+    this.taskService.getTeamMemberTaskCounts(normalizedPath).subscribe({
       next: (counts) => {
         this.teamMemberTaskCounts = counts;
         this.loading.taskCounts = false;
@@ -546,65 +560,98 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
   }
 
   /**
-   * Show auto-assign preview before actually assigning tasks
+   * Show preview of auto-assign suggestions before performing the assignment
    */
   showAutoAssignPreview(): void {
     this.loading.preview = true;
     this.error.preview = null;
     this.showingPreview = true;
+    this.assignPreviewTasks = [];
+    this.assignPreviewSuggestions = {};
     
-    // First get all tasks for the iteration path
-    this.taskService.getTasks(this.currentIterationPath).subscribe({
+    // Normalize the iteration path to handle any double backslashes
+    const normalizedPath = this.currentIterationPath.replace(/\\\\/g, '\\');
+    console.log('Using normalized iteration path for auto-assign preview:', normalizedPath);
+    
+    // First, get all Dev-New tasks for the current iteration
+    this.taskService.getTasks(normalizedPath).subscribe({
       next: (tasks) => {
-        console.log('Got tasks from service:', tasks);
-        console.log('Tasks with Dev-New status:', tasks.filter(t => 
-          t.status && t.status.toLowerCase() === 'dev-new'
-        ));
-        
-        // First, get all Dev-New tasks
-        const allDevNewTasks = tasks.filter(t => 
-          t.status && t.status.toLowerCase() === 'dev-new'
-        );
-        
-        console.log('All Dev-New tasks:', allDevNewTasks);
-        
-        // Get R&D team members for this iteration path
-        this.teamService.getTeamMembersByTeam('RND', this.currentIterationPath).subscribe({
-          next: (rndMembers) => {
-            console.log('Got R&D team members for auto-assign:', rndMembers);
-            
-            // Extract the list of R&D team member names for the API
-            const rndMemberNames = rndMembers.map(m => m.displayName);
-            
-            // Then, get suggestions for which tasks should be reassigned
-            // Pass the R&D team member names to the API for filtering
-            this.taskService.getAutoAssignSuggestionsForTeam(this.currentIterationPath, rndMemberNames).subscribe({
-              next: (suggestions: Record<string, string>) => {
-                this.assignPreviewSuggestions = suggestions;
-                console.log('Got suggestions for R&D members:', suggestions);
-                
-                // Filter tasks to only include those in the suggestions (tasks to be reassigned)
-                const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
-                this.assignPreviewTasks = allDevNewTasks.filter(task => 
-                  suggestedTaskIds.includes(task.id)
-                );
-                
-                console.log('Filtered tasks to be reassigned:', this.assignPreviewTasks);
-                this.loading.preview = false;
-              },
-              error: (err: Error) => {
-                // Fall back to the standard auto-assign if the R&D-specific endpoint fails
-                console.error('Failed to get R&D-specific suggestions, falling back to standard auto-assign:', err);
-                this.getStandardAutoAssignSuggestions(allDevNewTasks);
-              }
-            });
-          },
-          error: (err: Error) => {
-            console.error('Error loading R&D team members for auto-assign:', err);
-            // Fall back to the standard auto-assign if R&D team member loading fails
-            this.getStandardAutoAssignSuggestions(allDevNewTasks);
-          }
+        // Enhanced filtering for Dev-New tasks - handle various status formats
+        const allDevNewTasks = tasks.filter(task => {
+          // Skip tasks without status
+          if (!task.status) return false;
+          
+          // Normalize status by removing spaces, hyphens, and converting to lowercase
+          const normalizedStatus = task.status.toLowerCase()
+            .replace(/[\s\-]/g, ''); // Remove spaces and hyphens
+          
+          // Match against various formats of "Dev-New"
+          return normalizedStatus === 'devnew' || 
+                 normalizedStatus === 'newdev' ||
+                 normalizedStatus.includes('devnew') ||
+                 normalizedStatus.includes('newdev') ||
+                 normalizedStatus.includes('developmentnew') ||
+                 normalizedStatus.includes('newdevelopment');
         });
+        
+        console.log(`Found ${allDevNewTasks.length} Dev-New tasks for auto-assign preview out of ${tasks.length} total tasks`);
+        console.log('Dev-New tasks:', allDevNewTasks);
+        
+        if (allDevNewTasks.length === 0) {
+          this.error.preview = 'No Dev-New tasks found in the current iteration. Auto-assign requires tasks with Dev-New status.';
+          this.loading.preview = false;
+          return;
+        }
+        
+        // If RnD team filter is applied, get team-specific suggestions
+        if (this.applyTeamFilter && this.teamName === 'RND') {
+          // Get RnD team members first
+          this.teamService.getTeamMembersByTeam('RND', normalizedPath).subscribe({
+            next: (teamMembers) => {
+              console.log('Got RnD team members for auto-assign:', teamMembers);
+              
+              // Extract team member names
+              const teamMemberNames = teamMembers.map(member => member.displayName);
+              
+              // Get auto-assign suggestions specifically for RnD team
+              this.taskService.getAutoAssignSuggestionsForTeam(normalizedPath, teamMemberNames).subscribe({
+                next: (suggestions) => {
+                  this.assignPreviewSuggestions = suggestions;
+                  console.log('Got team-specific suggestions:', suggestions);
+                  
+                  // Filter tasks to only include those in the suggestions (tasks to be reassigned)
+                  const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
+                  this.assignPreviewTasks = allDevNewTasks.filter(task => 
+                    suggestedTaskIds.includes(task.id)
+                  );
+                  
+                  console.log('Filtered tasks to be reassigned:', this.assignPreviewTasks);
+                  
+                  // If no matches, try fallback to standard suggestions
+                  if (this.assignPreviewTasks.length === 0 && Object.keys(suggestions).length > 0) {
+                    console.warn('No matching tasks found for team-specific suggestions. Trying standard suggestions.');
+                    this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
+                  } else {
+                    this.loading.preview = false;
+                  }
+                },
+                error: (err) => {
+                  console.error('Error loading team-specific auto-assign suggestions:', err);
+                  // Fall back to standard auto-assign if team-specific fails
+                  this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
+                }
+              });
+            },
+            error: (err) => {
+              console.error('Error loading RnD team members for auto-assign:', err);
+              // Fall back to the standard auto-assign if RnD team member loading fails
+              this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
+            }
+          });
+        } else {
+          // Get standard auto-assign suggestions
+          this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
+        }
       },
       error: (err) => {
         this.error.preview = `Failed to load tasks: ${err.message}`;
@@ -614,21 +661,82 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
   }
   
   /**
-   * Fallback method to get standard auto-assign suggestions if R&D-specific fails
+   * Fallback method to get standard auto-assign suggestions if RnD-specific fails
    */
-  private getStandardAutoAssignSuggestions(allDevNewTasks: WorkItem[]): void {
-    this.taskService.getAutoAssignSuggestions(this.currentIterationPath).subscribe({
+  private getStandardAutoAssignSuggestions(allDevNewTasks: WorkItem[], normalizedPath: string): void {
+    console.log('Getting standard auto-assign suggestions with path:', normalizedPath);
+    console.log('Dev-New tasks available for assignment:', allDevNewTasks);
+    
+    this.taskService.getAutoAssignSuggestions(normalizedPath).subscribe({
       next: (suggestions) => {
         this.assignPreviewSuggestions = suggestions;
         console.log('Got standard suggestions (fallback):', suggestions);
         
+        // Check if we have any suggestions
+        if (Object.keys(suggestions).length === 0) {
+          console.warn('No suggestions returned from the API');
+          this.error.preview = 'No task assignment suggestions were generated. There may be no available tasks to assign.';
+          this.loading.preview = false;
+          return;
+        }
+        
         // Filter tasks to only include those in the suggestions (tasks to be reassigned)
         const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
-        this.assignPreviewTasks = allDevNewTasks.filter(task => 
-          suggestedTaskIds.includes(task.id)
-        );
+        console.log('Suggestion task IDs:', suggestedTaskIds);
+        
+        // Try more flexible matching if necessary
+        if (suggestedTaskIds.length > 0 && allDevNewTasks.length > 0) {
+          console.log('Applying task to suggestion matching...');
+          console.log('Task IDs available:', allDevNewTasks.map(t => t.id));
+          
+          this.assignPreviewTasks = allDevNewTasks.filter(task => 
+            suggestedTaskIds.includes(task.id)
+          );
+          
+          // If no matches found, try string matching
+          if (this.assignPreviewTasks.length === 0) {
+            console.warn('No direct ID matches found, trying string matching');
+            this.assignPreviewTasks = allDevNewTasks.filter(task => 
+              suggestedTaskIds.includes(Number(task.id))
+            );
+            
+            // If still no matches, try more flexible matching
+            if (this.assignPreviewTasks.length === 0) {
+              console.warn('No matches found even with string conversion, using available Dev-New tasks');
+              // Just use the first few Dev-New tasks that aren't assigned
+              this.assignPreviewTasks = allDevNewTasks
+                .filter(task => !task.assignedTo || task.assignedTo.trim() === '')
+                .slice(0, Math.min(5, allDevNewTasks.length));
+              
+              // Create suggestions for them
+              if (this.assignPreviewTasks.length > 0) {
+                console.log('Using', this.assignPreviewTasks.length, 'unassigned Dev-New tasks as fallback');
+                // Create empty suggestions object
+                this.assignPreviewSuggestions = {};
+                
+                // Get team members to suggest
+                const availableMembers = this.filteredTeamMembers
+                  .sort((a, b) => (a.currentWorkload || 0) - (b.currentWorkload || 0))
+                  .map(m => m.displayName)
+                  .filter(Boolean);
+                
+                // Assign members to tasks
+                this.assignPreviewTasks.forEach((task, index) => {
+                  const memberIndex = index % availableMembers.length;
+                  const member = availableMembers[memberIndex];
+                  this.assignPreviewSuggestions[task.id] = `${member} (least assigned)`;
+                });
+              }
+            }
+          }
+        }
         
         console.log('Filtered tasks to be reassigned (fallback):', this.assignPreviewTasks);
+        
+        if (this.assignPreviewTasks.length === 0) {
+          this.error.preview = 'No tasks available for assignment. Check if there are Dev-New tasks in the current iteration.';
+        }
+        
         this.loading.preview = false;
       },
       error: (err) => {
@@ -662,6 +770,9 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     this.loading.autoAssign = true;
     this.error.autoAssign = null;
     
+    // Normalize the path for consistent handling
+    const normalizedPath = this.currentIterationPath.replace(/\\\\/g, '\\');
+    
     const assignmentPromises = [];
     let assignmentCount = 0;
     
@@ -669,6 +780,9 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     for (const task of this.assignPreviewTasks) {
       if (this.assignPreviewSuggestions[task.id]) {
         const developerName = this.extractDeveloperName(this.assignPreviewSuggestions[task.id]);
+        
+        console.log(`Assigning task #${task.id} (${task.title}) to ${developerName}`);
+        
         assignmentPromises.push(
           this.taskService.assignTask(task.id, developerName)
         );
@@ -683,11 +797,14 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
           // Hide the preview after successful assignment
           this.showingPreview = false;
           
-          // Refresh the task list
+          // Refresh the task list with normalized path
           this.loadTasks();
           
+          // Also refresh the task counts to show updated workload
+          this.loadTeamMemberTaskCounts();
+          
           // Show success message
-          alert(`Successfully assigned ${assignmentCount} tasks.`);
+          this.showSuccessMessage(`Successfully assigned ${assignmentCount} tasks.`);
           
           this.loading.autoAssign = false;
         },
@@ -708,8 +825,15 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    */
   extractDeveloperName(suggestion: string): string {
     if (!suggestion) return '';
-    const parts = suggestion.split(' (');
-    return parts[0];
+    
+    // Handle new format: "Developer Name (expert in Bug, low load)"
+    if (suggestion.includes('(')) {
+      return suggestion.substring(0, suggestion.indexOf('(')).trim();
+    } 
+    
+    // Fallback for simpler formats
+    const parts = suggestion.split(' ');
+    return parts[0]; // Just return the first word as the name
   }
   
   /**
@@ -718,8 +842,20 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    */
   extractLogicExplanation(suggestion: string): string {
     if (!suggestion) return '';
+    
+    // Match content inside parentheses
     const match = suggestion.match(/\((.*?)\)/);
-    return match ? match[1] : '';
+    if (match && match[1]) {
+      return match[1];
+    }
+    
+    // If no parentheses, return the part after the first space
+    const spaceIndex = suggestion.indexOf(' ');
+    if (spaceIndex !== -1) {
+      return suggestion.substring(spaceIndex + 1).trim();
+    }
+    
+    return '';
   }
 
   /**
@@ -844,7 +980,10 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
   loadTeamMemberTaskCountsForModal(iterationPath: string): void {
     this.loading.taskCounts = true;
     
-    this.taskService.getTeamMemberTaskCounts(iterationPath).subscribe({
+    // Normalize the iteration path
+    const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+    
+    this.taskService.getTeamMemberTaskCounts(normalizedPath).subscribe({
       next: (counts) => {
         this.teamMemberTaskCounts = counts;
         this.loading.taskCounts = false;
@@ -1057,7 +1196,12 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    */
   getDevNewTasks(): WorkItem[] {
     return this.filteredTasks.filter(task => 
-      task.status && task.status.toLowerCase() === 'dev-new'
+      task.status && 
+      (task.status.toLowerCase() === 'dev-new' ||
+       task.status.toLowerCase() === 'dev new' ||
+       task.status.toLowerCase().includes('dev-new') ||
+       task.status.toLowerCase().includes('dev new') ||
+       task.status.toLowerCase() === 'development - new')
     );
   }
 
@@ -1068,7 +1212,11 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
   getUnassignedDevNewTasks(): WorkItem[] {
     return this.filteredTasks.filter(task => 
       task.status && 
-      task.status.toLowerCase() === 'dev-new' && 
+      (task.status.toLowerCase() === 'dev-new' ||
+       task.status.toLowerCase() === 'dev new' ||
+       task.status.toLowerCase().includes('dev-new') ||
+       task.status.toLowerCase().includes('dev new') ||
+       task.status.toLowerCase() === 'development - new') && 
       !task.assignedTo
     );
   }

@@ -210,14 +210,34 @@ namespace AI_Scrum.Controllers
                 // Decode URL-encoded characters, especially backslashes
                 if (!string.IsNullOrEmpty(iterationPath))
                 {
+                    // First unescape any URL encoding
                     iterationPath = Uri.UnescapeDataString(iterationPath);
+                    
+                    // Then normalize any double backslashes (in case it came from JSON serialization)
+                    iterationPath = iterationPath.Replace("\\\\", "\\");
+                    
+                    _logger.LogInformation("Normalized iteration path for auto-assign suggestions: {IterationPath}", iterationPath);
+                }
+                else
+                {
+                    _logger.LogWarning("No iteration path provided for auto-assign suggestions");
+                    return BadRequest("Iteration path is required");
                 }
                 
                 var suggestions = await _taskService.GetAutoAssignSuggestionsAsync(iterationPath);
+                
+                // Log the suggestions returned for debugging
+                _logger.LogInformation("Auto-assign suggestions count: {Count}", suggestions.Count);
+                foreach (var kvp in suggestions.Take(5))
+                {
+                    _logger.LogInformation("Suggestion: Task {TaskId} -> {Assignee}", kvp.Key, kvp.Value);
+                }
+                
                 return Ok(suggestions);
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error retrieving auto-assign suggestions for iteration {IterationPath}", iterationPath);
                 return StatusCode(500, $"Error retrieving auto-assign suggestions: {ex.Message}");
             }
         }
@@ -229,17 +249,25 @@ namespace AI_Scrum.Controllers
             {
                 if (!ModelState.IsValid)
                 {
+                    _logger.LogWarning("Invalid model state for auto-assign suggestions: {Errors}", 
+                        string.Join(", ", ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage)));
                     return BadRequest(ModelState);
                 }
 
-                // Decode URL-encoded characters, especially backslashes
+                // Decode URL-encoded characters and normalize backslashes in the iteration path
                 if (!string.IsNullOrEmpty(request.IterationPath))
                 {
+                    // First unescape any URL encoding
                     request.IterationPath = Uri.UnescapeDataString(request.IterationPath);
+                    
+                    // Then normalize any double backslashes (in case it came from JSON serialization)
+                    request.IterationPath = request.IterationPath.Replace("\\\\", "\\");
+                    
+                    _logger.LogInformation("Normalized iteration path: {IterationPath}", request.IterationPath);
                 }
                 
-                _logger.LogInformation("Getting auto-assign suggestions for team members in iteration path {IterationPath}", 
-                    request.IterationPath);
+                _logger.LogInformation("Getting auto-assign suggestions for {Count} team members in iteration path {IterationPath}", 
+                    request.TeamMembers?.Count ?? 0, request.IterationPath);
                 
                 // If no team members provided, return empty suggestions
                 if (request.TeamMembers == null || !request.TeamMembers.Any())
@@ -249,14 +277,16 @@ namespace AI_Scrum.Controllers
                 }
                 
                 // Log the team members for debugging
-                _logger.LogInformation("Filtering auto-assign for {Count} team members: {TeamMembers}", 
-                    request.TeamMembers.Count, string.Join(", ", request.TeamMembers));
+                _logger.LogInformation("Team members for auto-assign: {TeamMembers}", 
+                    string.Join(", ", request.TeamMembers));
                 
                 // Get auto-assign suggestions restricted to the provided team members
                 var suggestions = await _taskService.GetAutoAssignSuggestionsForTeamAsync(
                     request.IterationPath, 
                     request.TeamMembers
                 );
+                
+                _logger.LogInformation("Generated {Count} auto-assign suggestions", suggestions.Count);
                 
                 return Ok(suggestions);
             }
@@ -272,6 +302,28 @@ namespace AI_Scrum.Controllers
         {
             try
             {
+                if (!ModelState.IsValid)
+                {
+                    return BadRequest(ModelState);
+                }
+                
+                // Normalize the iteration path
+                if (!string.IsNullOrEmpty(request.IterationPath))
+                {
+                    // First unescape any URL encoding
+                    request.IterationPath = Uri.UnescapeDataString(request.IterationPath);
+                    
+                    // Then normalize any double backslashes (in case it came from JSON serialization)
+                    request.IterationPath = request.IterationPath.Replace("\\\\", "\\");
+                    
+                    _logger.LogInformation("Normalized iteration path for auto-assign tasks: {IterationPath}", request.IterationPath);
+                }
+                else
+                {
+                    _logger.LogWarning("No iteration path provided for auto-assign tasks");
+                    return BadRequest("Iteration path is required");
+                }
+                
                 var result = await _taskService.AutoAssignTasksAsync(request.IterationPath);
                 if (result)
                 {
@@ -281,6 +333,7 @@ namespace AI_Scrum.Controllers
             }
             catch (Exception ex)
             {
+                _logger.LogError(ex, "Error auto-assigning tasks for iteration {IterationPath}", request.IterationPath);
                 return StatusCode(500, $"Error auto-assigning tasks: {ex.Message}");
             }
         }

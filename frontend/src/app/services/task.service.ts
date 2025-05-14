@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
-import { catchError, retry, map } from 'rxjs/operators';
+import { catchError, retry, map, tap } from 'rxjs/operators';
 import { WorkItem, WorkItemDetails, TeamMember } from '../models/task.model';
 import { environment } from '../../environments/environment';
 
@@ -33,9 +33,13 @@ export class TaskService {
    * @returns Observable of WorkItem array
    */
   getTasks(iterationPath: string, fromDate?: string, toDate?: string): Observable<WorkItem[]> {
+    // Normalize the iteration path to handle any double backslashes
+    const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+    console.log(`Getting tasks with normalized iteration path: ${normalizedPath}`);
+    
     // Use HttpParams for proper URL encoding and query string building
     // Manually encode the iterationPath to ensure backslashes are correctly encoded
-    const encodedIterationPath = encodeURIComponent(iterationPath);
+    const encodedIterationPath = encodeURIComponent(normalizedPath);
     let params = new HttpParams().set('iterationPath', encodedIterationPath);
     
     if (fromDate) {
@@ -76,8 +80,11 @@ export class TaskService {
     let params = new HttpParams();
     
     if (iterationPath) {
+      // Normalize the iteration path to handle any double backslashes
+      const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+      
       // Manually encode the iterationPath to ensure backslashes are correctly encoded
-      const encodedIterationPath = encodeURIComponent(iterationPath);
+      const encodedIterationPath = encodeURIComponent(normalizedPath);
       params = params.set('iterationPath', encodedIterationPath);
     }
     
@@ -109,11 +116,23 @@ export class TaskService {
    * @returns Observable of task ID to suggested assignee mapping
    */
   getAutoAssignSuggestions(iterationPath: string): Observable<Record<string, string>> {
+    // Normalize the iteration path to handle any double backslashes
+    const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+    console.log(`Getting auto-assign suggestions with normalized path: ${normalizedPath}`);
+    
     // Ensure the iterationPath is properly encoded
-    const params = new HttpParams().set('iterationPath', encodeURIComponent(iterationPath));
+    const encodedIterationPath = encodeURIComponent(normalizedPath);
+    const params = new HttpParams().set('iterationPath', encodedIterationPath);
     
     return this.http.get<Record<string, string>>(`${this.apiUrl}/auto-assign-suggestions`, { params }).pipe(
-      catchError(error => this.handleError(error, 'getting auto-assign suggestions'))
+      tap(response => {
+        console.log('Auto-assign suggestions response:', response);
+        console.log('Suggestion keys:', Object.keys(response));
+      }),
+      catchError(error => {
+        console.error('Error getting auto-assign suggestions:', error);
+        return this.handleError(error, 'getting auto-assign suggestions');
+      })
     );
   }
 
@@ -124,15 +143,30 @@ export class TaskService {
    * @returns Observable of task ID to suggested assignee mapping
    */
   getAutoAssignSuggestionsForTeam(iterationPath: string, teamMembers: string[]): Observable<Record<string, string>> {
-    // Ensure the iterationPath is properly encoded
-    const params = new HttpParams().set('iterationPath', encodeURIComponent(iterationPath));
+    // Log request details for debugging
+    console.log(`Getting auto-assign suggestions for team with iteration path: ${iterationPath}`);
+    console.log(`Team members (${teamMembers.length}):`, teamMembers);
     
-    return this.http.post<Record<string, string>>(`${this.apiUrl}/auto-assign-suggestions/team`, {
-      iterationPath: iterationPath,
+    // Normalize the iteration path (replace double backslashes with single)
+    const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+    
+    // Create the request body - ensure iterationPath is properly included
+    const requestBody = {
+      iterationPath: normalizedPath,
       teamMembers: teamMembers
-    }).pipe(
-      catchError(error => this.handleError(error, 'getting team-specific auto-assign suggestions'))
-    );
+    };
+
+    console.log('Sending request to auto-assign-suggestions/team with payload:', JSON.stringify(requestBody));
+    
+    return this.http.post<Record<string, string>>(`${this.apiUrl}/auto-assign-suggestions/team`, requestBody)
+      .pipe(
+        tap(response => console.log('Auto-assign suggestions for team response:', response)),
+        catchError(error => {
+          console.error('Error getting team-specific auto-assign suggestions:', error);
+          console.error('Request payload was:', JSON.stringify(requestBody));
+          return this.handleError(error, 'getting team-specific auto-assign suggestions');
+        })
+      );
   }
 
   /**
@@ -141,12 +175,20 @@ export class TaskService {
    * @returns Observable of the assignment result
    */
   autoAssignTasks(iterationPath: string): Observable<any> {
-    // Ensure the iterationPath is properly encoded in the JSON body
-    const encodedIterationPath = encodeURIComponent(iterationPath);
+    // Normalize the iteration path to handle double backslashes
+    const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+    
+    console.log(`Auto-assigning tasks for iteration path: ${normalizedPath}`);
+    
+    // Send the normalized path in the request body
     return this.http.post<any>(`${this.apiUrl}/auto-assign`, {
-      iterationPath: encodedIterationPath
+      iterationPath: normalizedPath
     }).pipe(
-      catchError(error => this.handleError(error, 'auto-assigning tasks'))
+      tap(response => console.log('Auto-assign tasks response:', response)),
+      catchError(error => {
+        console.error('Error auto-assigning tasks:', error);
+        return this.handleError(error, 'auto-assigning tasks');
+      })
     );
   }
 
@@ -156,8 +198,12 @@ export class TaskService {
    * @returns Observable of team member names to task count mapping
    */
   getTeamMemberTaskCounts(iterationPath: string): Observable<Record<string, number>> {
+    // Normalize the iteration path to handle any double backslashes
+    const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+    console.log(`Getting team member task counts with normalized path: ${normalizedPath}`);
+    
     // Manually encode the iterationPath to ensure backslashes are correctly encoded
-    const encodedIterationPath = encodeURIComponent(iterationPath);
+    const encodedIterationPath = encodeURIComponent(normalizedPath);
     const params = new HttpParams().set('iterationPath', encodedIterationPath);
 
     return this.http.get<Record<string, number>>(`${this.apiUrl}/team-member-task-counts`, { params })
