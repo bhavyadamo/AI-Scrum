@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AI-Scrum")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3692aae39bc0a6da3c246a7895c569d5e66a103d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4c420eef156aa8192412fab124c5028c127c0100")]
 [assembly: System.Reflection.AssemblyProductAttribute("AI-Scrum")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AI-Scrum")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -8,7 +8,7 @@ import { CommonModule } from '@angular/common';
 import { AppComponent } from './app.component';
 import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { TaskDistributionComponent } from './components/task-distribution/task-distribution.component';
-import { RecommendationsComponent } from './features/recommendations/recommendations.component';
+import { RecommendationsComponent } from './components/recommendations/recommendations.component';
 import { TaskEstimationComponent } from './components/task-estimation/task-estimation.component';
 import { NavbarComponent } from './components/navbar/navbar.component';
 import { AutoAssignComponent } from './components/auto-assign/auto-assign.component';

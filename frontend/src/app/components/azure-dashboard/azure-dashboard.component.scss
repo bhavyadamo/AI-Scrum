@@ -1,0 +1,72 @@
+.azure-dashboard-container {
+  padding: 20px;
+}
+
+.card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: none;
+  margin-bottom: 20px;
+  
+  .card-header {
+    background-color: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    font-weight: 600;
+    padding: 12px 16px;
+  }
+}
+
+// Status boxes for quick view
+.status-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.status-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 8px;
+  min-width: 120px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  
+  .status-name {
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+  }
+  
+  .status-count {
+    font-size: 24px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+}
+
+// Assignee section styling
+.assignee-row {
+  padding: 12px;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: #f1f3f5;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+  }
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+} 

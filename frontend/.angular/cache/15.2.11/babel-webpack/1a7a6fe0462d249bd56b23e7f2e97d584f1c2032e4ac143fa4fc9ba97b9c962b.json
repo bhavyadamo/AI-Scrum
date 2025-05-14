@@ -1,0 +1,1 @@
+{"ast":null,"code":"export const environment = {\n  production: true,\n  apiUrl: '/api',\n  // Azure DevOps configuration - update with actual values for production\n  azureDevOpsUrl: 'https://dev.azure.com',\n  organization: 'inatech',\n  project: 'Techoil'\n};","map":null,"metadata":{},"sourceType":"module","externalDependencies":[]}

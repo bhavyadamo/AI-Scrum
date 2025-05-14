@@ -1,0 +1,175 @@
+<div class="azure-dashboard-container p-4">
+  <div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+      <h4 class="mb-0">Azure DevOps Dashboard</h4>
+      <div>
+        <div class="d-flex align-items-center">
+          <div class="input-group input-group-sm me-2" style="max-width: 250px;">
+            <select 
+              class="form-select" 
+              [(ngModel)]="selectedIterationPath"
+              aria-label="Iteration Path">
+              <option *ngFor="let path of availableIterationPaths" [value]="path">{{ path }}</option>
+            </select>
+            <input 
+              type="text" 
+              class="form-control" 
+              placeholder="Custom Iteration Path" 
+              [(ngModel)]="selectedIterationPath"
+              (keyup.enter)="loadDashboardData()"
+              aria-label="Iteration Path">
+            <button 
+              class="btn btn-outline-primary" 
+              type="button" 
+              (click)="loadDashboardData()"
+              title="Load data for this iteration path">
+              <i class="bi bi-search"></i>
+            </button>
+          </div>
+          <button class="btn btn-outline-primary btn-sm" (click)="refresh()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading indicator -->
+  <div *ngIf="loading" class="text-center py-4">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2 text-muted">Fetching data from Azure DevOps...</p>
+  </div>
+  
+  <!-- Error message -->
+  <div *ngIf="error" class="alert alert-danger">
+    {{ error }}
+  </div>
+  
+  <!-- Dashboard content when data is loaded -->
+  <div *ngIf="!loading && !error && dashboardStats">
+    <!-- Summary Card -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Summary</h5>
+      </div>
+      <div class="card-body">
+        <div class="row">
+          <div class="col-md-12">
+            <h6 class="mb-3">Total Work Items: {{ dashboardStats.totalItems }}</h6>
+            <div class="status-boxes">
+              <div *ngFor="let status of getStatusData()" class="status-box" [style.background-color]="status.color">
+                <div class="status-name">{{ status.status }}</div>
+                <div class="status-count">{{ status.count }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Charts Row -->
+    <div class="row mb-4">
+      <!-- Status Chart -->
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h5 class="mb-0">Status Distribution</h5>
+          </div>
+          <div class="card-body d-flex align-items-center justify-content-center">
+            <canvas #statusChart></canvas>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Root Cause Chart -->
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">
+            <h5 class="mb-0">Root Cause Analysis</h5>
+          </div>
+          <div class="card-body">
+            <div *ngIf="dashboardStats.rootCauseCounts.length === 0" class="text-center py-4">
+              <p class="text-muted">No root cause data available</p>
+            </div>
+            <canvas *ngIf="dashboardStats.rootCauseCounts.length > 0" #rootCauseChart></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Assignee Row -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Assigned To</h5>
+      </div>
+      <div class="card-body">
+        <div *ngIf="getAssigneeData().length === 0" class="text-center py-4">
+          <p class="text-muted">No assignee data available</p>
+        </div>
+        
+        <div *ngFor="let assignee of getAssigneeData()" class="assignee-row mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <h6 class="mb-0">{{ assignee.name }}</h6>
+            <span class="badge bg-secondary">{{ assignee.total }} items</span>
+          </div>
+          
+          <!-- Status badges for this assignee -->
+          <div class="d-flex flex-wrap">
+            <div *ngFor="let state of getStatesForAssignee(assignee)" class="status-badge me-2 mb-1" [style.background-color]="getStatusColor(state.state)">
+              {{ state.state }}: {{ state.count }}
+            </div>
+          </div>
+          
+          <!-- Progress bar showing distribution -->
+          <div class="progress mt-2" style="height: 6px;">
+            <ng-container *ngFor="let state of getStatesForAssignee(assignee)">
+              <div class="progress-bar" 
+                  [style.background-color]="getStatusColor(state.state)"
+                  [style.width.%]="(state.count / assignee.total) * 100"
+                  role="progressbar"></div>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Root Cause Details -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5 class="mb-0">Root Cause Details</h5>
+      </div>
+      <div class="card-body">
+        <div *ngIf="dashboardStats.rootCauseCounts.length === 0" class="text-center py-4">
+          <p class="text-muted">No root cause data available</p>
+        </div>
+        
+        <div class="table-responsive">
+          <table class="table table-striped" *ngIf="dashboardStats.rootCauseCounts.length > 0">
+            <thead>
+              <tr>
+                <th>Root Cause</th>
+                <th>Count</th>
+                <th>Status Distribution</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let rootCause of dashboardStats.rootCauseCounts">
+                <td>{{ rootCause.rootCause }}</td>
+                <td>{{ rootCause.count }}</td>
+                <td>
+                  <div class="d-flex flex-wrap">
+                    <div *ngFor="let state of getStatesForRootCause(rootCause)" class="status-badge me-2 mb-1" [style.background-color]="getStatusColor(state.state)">
+                      {{ state.state }}: {{ state.count }}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div> 

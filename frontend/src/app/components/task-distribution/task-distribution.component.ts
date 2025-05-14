@@ -1,15 +1,22 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit } from '@angular/core';
 import { TaskService } from '../../services/task.service';
 import { TeamService } from '../../services/team.service';
 import { WorkItem, TeamMember } from '../../models/task.model';
 import { forkJoin } from 'rxjs';
+
+// Declare the global bootstrap variable for TypeScript
+declare global {
+  interface Window {
+    bootstrap: any;
+  }
+}
 
 @Component({
   selector: 'app-task-distribution',
   templateUrl: './task-distribution.component.html',
   styleUrls: ['./task-distribution.component.scss']
 })
-export class TaskDistributionComponent implements OnInit {
+export class TaskDistributionComponent implements OnInit, AfterViewInit {
   tasks: WorkItem[] = [];
   filteredTasks: WorkItem[] = [];
   teamMembers: TeamMember[] = [];
@@ -19,6 +26,8 @@ export class TaskDistributionComponent implements OnInit {
   selectedTask: number | null = null; // Added for modal display
   selectedMember: string = ''; // Added for member selection in modal
   currentIterationPath: string = 'Techoil\\2.3.23'; // Default value
+  manualIterationPath: string = ''; // For manual input
+  teamName: string = 'RND'; // Default team name
   iterationPaths: string[] = []; // Will be loaded from API
   teamMemberTaskCounts: Record<string, number> = {}; // Added for task counts
   
@@ -26,6 +35,9 @@ export class TaskDistributionComponent implements OnInit {
   showingPreview: boolean = false;
   assignPreviewTasks: WorkItem[] = [];
   assignPreviewSuggestions: Record<string, string> = {};
+  
+  // Track the active tab
+  activeTab: string = 'distribution';
   
   // Convert simple boolean to object with specific loading states
   loading: { 
@@ -74,6 +86,74 @@ export class TaskDistributionComponent implements OnInit {
     this.loadIterationPaths();
   }
 
+  /**
+   * Handle tab change events
+   * @param tabId The ID of the selected tab
+   */
+  onTabChange(tabId: string): void {
+    console.log(`Tab changed to: ${tabId}`);
+    this.activeTab = tabId;
+    
+    // Load specific data based on the selected tab
+    if (tabId === 'workload') {
+      // Force refresh team members and workload data
+      this.loadTeamMembers();
+      this.loadTeamMemberTaskCounts();
+      console.log('Refreshing team workload data');
+    } else if (tabId === 'distribution') {
+      // Refresh tasks if needed
+      if (this.filteredTasks.length === 0 && !this.loading.tasks) {
+        this.loadTasks();
+        console.log('Refreshing task distribution data');
+      }
+    }
+  }
+
+  ngAfterViewInit(): void {
+    // Initialize Bootstrap tabs
+    this.initializeBootstrapTabs();
+  }
+
+  /**
+   * Initialize Bootstrap tabs programmatically
+   */
+  private initializeBootstrapTabs(): void {
+    try {
+      // Check if Bootstrap's Tab class is available globally
+      if (typeof window.bootstrap !== 'undefined' && window.bootstrap.Tab) {
+        // Initialize all tabs
+        const tabElements = document.querySelectorAll('[data-bs-toggle="tab"]');
+        tabElements.forEach(tabEl => {
+          // Create tab instance
+          const tab = new window.bootstrap.Tab(tabEl);
+          
+          // Add event listener for tab shown event
+          tabEl.addEventListener('shown.bs.tab', (event: any) => {
+            // Extract tab ID from the target
+            const targetId = event.target.getAttribute('data-bs-target');
+            const tabId = targetId === '#task-distribution' ? 'distribution' : 'workload';
+            console.log(`Tab shown event: ${tabId}`);
+            
+            // Update active tab and ensure data is loaded
+            this.activeTab = tabId;
+            
+            // Ensure tab content is loaded/refreshed
+            if (tabId === 'workload' && this.filteredTeamMembers.length === 0 && !this.loading.members) {
+              this.loadTeamMembers();
+              this.loadTeamMemberTaskCounts();
+            }
+          });
+        });
+        
+        console.log('Bootstrap tabs initialized successfully with event listeners');
+      } else {
+        console.warn('Bootstrap JavaScript not found. Tabs may not function properly.');
+      }
+    } catch (error) {
+      console.error('Error initializing Bootstrap tabs:', error);
+    }
+  }
+
   loadIterationPaths(): void {
     this.loading.iterationPaths = true;
     this.error.iterationPaths = null;
@@ -86,11 +166,11 @@ export class TaskDistributionComponent implements OnInit {
         if (paths.length > 0) {
           // Use the first path as default if available
           this.currentIterationPath = paths[0];
+          this.manualIterationPath = paths[0];
         }
         
-        // After loading iteration paths, load tasks and team members
-        this.loadTasks();
-        this.loadTeamMembers();
+        // We no longer automatically load data after loading iteration paths
+        // Data will be loaded when the search button is clicked
       },
       error: (err) => {
         console.error('Error loading iteration paths:', err);
@@ -106,11 +186,26 @@ export class TaskDistributionComponent implements OnInit {
         ];
         console.log('Using fallback iteration paths:', this.iterationPaths);
         
-        // Even if iteration paths loading fails, try to load tasks and team members
-        this.loadTasks();
-        this.loadTeamMembers();
+        // We no longer automatically load data after loading iteration paths
+        // Data will be loaded when the search button is clicked
       }
     });
+  }
+
+  /**
+   * Search button handler - loads data based on manual inputs
+   */
+  searchClicked(): void {
+    // Update the current iteration path with the manual input
+    this.currentIterationPath = this.manualIterationPath;
+    
+    // Clear previous errors
+    this.error.tasks = null;
+    this.error.members = null;
+    
+    // Load data based on the manual inputs
+    this.loadTasks();
+    this.loadTeamMembers();
   }
 
   loadTasks(): void {
@@ -143,11 +238,11 @@ export class TaskDistributionComponent implements OnInit {
     this.loading.members = true;
     this.error.members = null;
 
-    // Use the taskService directly to get team members by RND team
-    this.teamService.getTeamMembersByTeam('RND', this.currentIterationPath).subscribe({
+    // Use the teamService directly to get team members by team name
+    this.teamService.getTeamMembersByTeam(this.teamName, this.currentIterationPath).subscribe({
       next: (teamMembers) => {
         this.teamMembers = teamMembers;
-        console.log('Loaded RND team members:', this.teamMembers);
+        console.log(`Loaded ${this.teamName} team members:`, this.teamMembers);
         this.loading.members = false;
         
         // Filter out non-R&D team members
@@ -161,61 +256,37 @@ export class TaskDistributionComponent implements OnInit {
           this.updateTeamWorkload();
         } else {
           // If no tasks are loaded yet, still show the team members
-          console.log('No tasks loaded yet, showing filtered RND team members');
+          console.log('No tasks loaded yet, showing filtered team members');
         }
       },
       error: (err) => {
-        console.error('Error loading RND team members:', err);
+        console.error(`Error loading ${this.teamName} team members:`, err);
         
-        // Fallback to regular team members if RND team fails
+        // Fallback to regular team members if team-specific call fails
         this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
           next: (response) => {
-            // Check if response is an array of strings (names) or TeamMember objects
-            if (response.length > 0 && typeof response[0] === 'string') {
-              // It's an array of strings, convert to TeamMember objects
-              const names = response as string[];
-              this.teamMembers = names.map((name, index) => ({
-                id: `member-${index}`,
-                displayName: name,
-                uniqueName: '',
-                currentWorkload: 0,
-                isActive: true,
-                email: ''
-              }));
-            } else {
-              // It's already an array of TeamMember objects
+            // Process the response as an array of TeamMember objects
+            if (Array.isArray(response)) {
               this.teamMembers = response as TeamMember[];
+              
+              // Filter out non-R&D team members
+              this.filterRnDTeamMembers();
+              
+              // If tasks are already loaded, update team workload data
+              if (this.tasks.length > 0) {
+                this.updateTeamWorkload();
+              }
+            } else {
+              console.error('Unexpected response format from getTeamMembers:', response);
+              this.error.members = 'Failed to load team members: Invalid response format';
             }
-            console.log('Loaded fallback team members:', this.teamMembers);
+            
             this.loading.members = false;
-            
-            // Filter out non-R&D team members even with fallback approach
-            this.filterRnDTeamMembers();
-            
-            // Load team member task counts after loading team members
-            this.loadTeamMemberTaskCounts();
-            
-            // If tasks are already loaded, update workload
-            if (this.tasks.length > 0) {
-              this.updateTeamWorkload();
-            }
           },
-          error: (innerErr) => {
-            console.error('Error loading fallback team members:', innerErr);
-            this.error.members = `Failed to load team members: ${err.message}`;
+          error: (memberErr) => {
+            console.error(`Error loading team members for iteration path ${this.currentIterationPath}:`, memberErr);
+            this.error.members = `Failed to load team members: ${memberErr.message}`;
             this.loading.members = false;
-            
-            // Add fallback team members if API call fails
-            this.teamMembers = [
-              { id: '1', displayName: 'Ranjith Kumar S', email: 'ranjithkumar.s@inatech.onmicrosoft.com', currentWorkload: 0, isActive: true, uniqueName: 'ranjithkumar.s', team: 'R&D' },
-              { id: '2', displayName: 'Rabirai Madhavan', email: 'rabiraj.m@example.com', currentWorkload: 0, isActive: true, uniqueName: 'rabiraj.m', team: 'R&D' },
-              { id: '3', displayName: 'Dhinakarraj Sivakumar', email: 'dhivakarraj.s@example.com', currentWorkload: 0, isActive: true, uniqueName: 'dhivakarraj.s', team: 'R&D' }
-            ];
-            this.filterRnDTeamMembers();
-            console.log('Using fallback team members:', this.teamMembers);
-            
-            // Try to load task counts even if team members loading fails
-            this.loadTeamMemberTaskCounts();
           }
         });
       }
@@ -805,23 +876,23 @@ export class TaskDistributionComponent implements OnInit {
   }
 
   /**
-   * Change the iteration path and reload tasks
-   * @param iterationPath New iteration path to load tasks from
+   * Handle changing the iteration path
+   * @param iterationPath The new iteration path
    */
   changeIterationPath(iterationPath: string): void {
     console.log(`Changing iteration path to: ${iterationPath}`);
+    
+    if (this.currentIterationPath === iterationPath) {
+      console.log('Iteration path unchanged, skipping reload');
+      return;
+    }
+    
+    // Update both the current and manual iteration paths
     this.currentIterationPath = iterationPath;
+    this.manualIterationPath = iterationPath;
     
-    // Reset data
-    this.tasks = [];
-    this.filteredTasks = [];
-    this.teamMembers = [];
-    this.filteredTeamMembers = [];
-    this.teamMemberTaskCounts = {};
-    
-    // Load new data
-    this.loadTasks();
-    this.loadTeamMembers();
+    // For backward compatibility, trigger the search (load data)
+    this.searchClicked();
   }
 
   /**

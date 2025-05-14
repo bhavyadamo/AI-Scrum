@@ -4,147 +4,198 @@
       <div class="d-flex justify-content-between align-items-center">
         <h2 class="mb-0">Task Distribution</h2>
         <div>
-          <!-- Iteration Path Selection -->
-          <div class="d-inline-block me-3">
-            <select class="form-select" [ngModel]="currentIterationPath" (ngModelChange)="changeIterationPath($event)" [disabled]="loading.iterationPaths">
-              <option *ngFor="let path of iterationPaths" [ngValue]="path">{{ path }}</option>
-            </select>
-            <div *ngIf="loading.iterationPaths" class="text-muted small mt-1">
-              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              Loading iteration paths...
+          <!-- Manual Input Form -->
+          <div class="d-flex">
+            <!-- Team Name Input -->
+            <div class="me-2">
+              <input type="text" class="form-control" placeholder="Team Name" [(ngModel)]="teamName" 
+                [disabled]="loading.tasks || loading.members">
+              <small class="text-muted">e.g., RND</small>
             </div>
+            
+            <!-- Iteration Path Input -->
+            <div class="me-2">
+              <input type="text" class="form-control" placeholder="Iteration Path" [(ngModel)]="manualIterationPath" 
+                [disabled]="loading.tasks || loading.members" list="iterationPathsList">
+              <small class="text-muted">e.g., Techoil\2.3.23</small>
+              
+              <!-- Datalist for iteration path suggestions -->
+              <datalist id="iterationPathsList">
+                <option *ngFor="let path of iterationPaths" [value]="path"></option>
+              </datalist>
+            </div>
+            
+            <!-- Search Button -->
+            <button class="btn btn-primary me-2" (click)="searchClicked()" [disabled]="loading.tasks || loading.members">
+              <i class="bi bi-search me-1"></i>
+              <span *ngIf="!loading.tasks && !loading.members">Search</span>
+              <span *ngIf="loading.tasks || loading.members">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Loading...
+              </span>
+            </button>
+            
+            <!-- Auto Assign Button -->
+            <button class="btn btn-primary" (click)="showAutoAssignPreview()" [disabled]="loading.autoAssign || loading.preview">
+              <i class="bi bi-magic"></i> 
+              <span *ngIf="!loading.autoAssign && !loading.preview">Auto-Assign Tasks</span>
+              <span *ngIf="loading.preview">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Loading Preview...
+              </span>
+              <span *ngIf="loading.autoAssign">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                Assigning...
+              </span>
+            </button>
           </div>
-          <button class="btn btn-primary" (click)="showAutoAssignPreview()" [disabled]="loading.autoAssign || loading.preview">
-            <i class="bi bi-magic"></i> 
-            <span *ngIf="!loading.autoAssign && !loading.preview">Auto-Assign Tasks</span>
-            <span *ngIf="loading.preview">
-              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              Loading Preview...
-            </span>
-            <span *ngIf="loading.autoAssign">
-              <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-              Assigning...
-            </span>
-          </button>
         </div>
       </div>
       <p class="text-muted mt-2">Manage and assign tasks for the current sprint</p>
       <div *ngIf="error.autoAssign" class="alert alert-danger">{{ error.autoAssign }}</div>
       <div *ngIf="error.iterationPaths" class="alert alert-warning">{{ error.iterationPaths }}</div>
+      <div *ngIf="error.tasks" class="alert alert-danger">{{ error.tasks }}</div>
+      <div *ngIf="error.members" class="alert alert-danger">{{ error.members }}</div>
     </div>
   </div>
 
-  <!-- Tasks Table -->
-  <div class="row">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-body">
-          <div *ngIf="loading.tasks" class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading tasks...</span>
+  <!-- Tab Navigation -->
+  <ul class="nav nav-tabs mb-4" id="taskTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="task-distribution-tab" data-bs-toggle="tab" data-bs-target="#task-distribution" type="button" role="tab" aria-controls="task-distribution" aria-selected="true" (click)="onTabChange('distribution')">
+        <i class="bi bi-list-task me-2"></i>Task Distribution
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="task-workload-tab" data-bs-toggle="tab" data-bs-target="#task-workload" type="button" role="tab" aria-controls="task-workload" aria-selected="false" (click)="onTabChange('workload')">
+        <i class="bi bi-bar-chart-line me-2"></i>Task Workload
+      </button>
+    </li>
+  </ul>
+
+  <!-- Tab Content -->
+  <div class="tab-content" id="taskTabsContent">
+    <!-- Task Distribution Tab -->
+    <div class="tab-pane fade show active" id="task-distribution" role="tabpanel" aria-labelledby="task-distribution-tab">
+      <!-- Tasks Table -->
+      <div class="row">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body">
+              <div *ngIf="loading.tasks" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading tasks...</span>
+                </div>
+              </div>
+
+              <div *ngIf="error.tasks" class="alert alert-danger">{{ error.tasks }}</div>
+
+              <div *ngIf="!loading.tasks && !error.tasks && tasks.length === 0" class="text-center py-4">
+                <p class="text-muted">No tasks found for the current iteration path.</p>
+              </div>
+
+              <div *ngIf="!loading.tasks && !error.tasks && tasks.length > 0" class="table-responsive">
+                <table class="table table-hover">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Title</th>
+                      <th>Priority</th>
+                      <th>Assigned To</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let task of filteredTasks">
+                      <td>{{ task.id }}</td>
+                      <td>{{ task.title }}</td>
+                      <td>
+                        <span class="badge rounded-pill" [ngClass]="getPriorityClass(task.priority)">
+                          {{ task.priority }}
+                        </span>
+                      </td>
+                      <td>
+                        <div class="d-flex align-items-center">
+                          <span *ngIf="task.assignedTo" class="me-2">{{ task.assignedTo }}</span>
+                          <span *ngIf="!task.assignedTo" class="text-muted me-2">Unassigned</span>
+                          <div *ngIf="task.autoAssignSuggestion" class="ms-1 suggestion-box">
+                            <small class="text-primary">
+                              <i class="bi bi-lightbulb-fill"></i> 
+                              Suggest: {{ task.autoAssignSuggestion }}
+                            </small>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="badge rounded-pill" [ngClass]="getStatusClass(task.status)">
+                          {{ task.status }}
+                        </span>
+                      </td>
+                      <td>
+                        <button class="btn btn-primary btn-sm" (click)="openAssignModal(task.id)">
+                          <i class="bi bi-person-plus"></i> Assign
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-
-          <div *ngIf="error.tasks" class="alert alert-danger">{{ error.tasks }}</div>
-
-          <div *ngIf="!loading.tasks && !error.tasks && tasks.length === 0" class="text-center py-4">
-            <p class="text-muted">No tasks found for the current iteration path.</p>
-          </div>
-
-          <div *ngIf="!loading.tasks && !error.tasks && tasks.length > 0" class="table-responsive">
-            <table class="table table-hover">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Title</th>
-                  <th>Priority</th>
-                  <th>Assigned To</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let task of filteredTasks">
-                  <td>{{ task.id }}</td>
-                  <td>{{ task.title }}</td>
-                  <td>
-                    <span class="badge rounded-pill" [ngClass]="getPriorityClass(task.priority)">
-                      {{ task.priority }}
-                    </span>
-                  </td>
-                  <td>
-                    <div class="d-flex align-items-center">
-                      <span *ngIf="task.assignedTo" class="me-2">{{ task.assignedTo }}</span>
-                      <span *ngIf="!task.assignedTo" class="text-muted me-2">Unassigned</span>
-                      <div *ngIf="task.autoAssignSuggestion" class="ms-1 suggestion-box">
-                        <small class="text-primary">
-                          <i class="bi bi-lightbulb-fill"></i> 
-                          Suggest: {{ task.autoAssignSuggestion }}
-                        </small>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span class="badge rounded-pill" [ngClass]="getStatusClass(task.status)">
-                      {{ task.status }}
-                    </span>
-                  </td>
-                  <td>
-                    <button class="btn btn-primary btn-sm" (click)="openAssignModal(task.id)">
-                      <i class="bi bi-person-plus"></i> Assign
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!-- Team Workload Overview -->
-  <div class="row mt-4">
-    <div class="col-12">
-      <div class="card">
-        <div class="card-header">
-          <h4 class="mb-0">Team Workload</h4>
-        </div>
-        <div class="card-body">
-          <div *ngIf="loading.members" class="text-center py-4">
-            <div class="spinner-border text-primary" role="status">
-              <span class="visually-hidden">Loading team members...</span>
+    <!-- Task Workload Tab -->
+    <div class="tab-pane fade" id="task-workload" role="tabpanel" aria-labelledby="task-workload-tab">
+      <!-- Team Workload Overview -->
+      <div class="row">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+              <h4 class="mb-0">Team Workload</h4>
+              <button class="btn btn-outline-primary btn-sm" (click)="loadTeamMembers(); loadTeamMemberTaskCounts()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh Data
+              </button>
             </div>
-          </div>
+            <div class="card-body">
+              <div *ngIf="loading.members" class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Loading team members...</span>
+                </div>
+              </div>
 
-          <div *ngIf="error.members" class="alert alert-danger">{{ error.members }}</div>
+              <div *ngIf="error.members" class="alert alert-danger">{{ error.members }}</div>
 
-          <div *ngIf="!loading.members && !error.members && filteredTeamMembers.length === 0" class="text-center py-4">
-            <p class="text-muted">No team members found for the current iteration path.</p>
-          </div>
+              <div *ngIf="!loading.members && !error.members && filteredTeamMembers.length === 0" class="text-center py-4">
+                <p class="text-muted">No team members found for the current iteration path.</p>
+              </div>
 
-          <div *ngIf="!loading.members && !error.members && filteredTeamMembers.length > 0" class="row">
-            <div *ngFor="let member of filteredTeamMembers" class="col-md-3 col-sm-6 mb-3">
-              <div class="card team-member-card h-100" [ngClass]="{'bg-light': getTaskCount(member.displayName) === 0}">
-                <div class="card-body">
-                  <h5 class="card-title">{{ member.displayName }}</h5>
-                  <div class="workload-stats mt-2">
-                    <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(getTaskCount(member.displayName))">
-                      {{ getTaskCount(member.displayName) }} Tasks
-                    </span>
-                  </div>
-                  <div class="progress mt-2">
-                    <div class="progress-bar" 
-                        [ngClass]="getProgressBarClass(getTaskCount(member.displayName))"
-                        [style.width.%]="getWorkloadPercentage(getTaskCount(member.displayName))" 
-                        role="progressbar" 
-                        [attr.aria-valuenow]="getTaskCount(member.displayName)" 
-                        aria-valuemin="0" 
-                        aria-valuemax="10">
+              <div *ngIf="!loading.members && !error.members && filteredTeamMembers.length > 0" class="row">
+                <div *ngFor="let member of filteredTeamMembers" class="col-md-3 col-sm-6 mb-3">
+                  <div class="card team-member-card h-100" [ngClass]="{'bg-light': getTaskCount(member.displayName) === 0}">
+                    <div class="card-body">
+                      <h5 class="card-title">{{ member.displayName }}</h5>
+                      <div class="workload-stats mt-2">
+                        <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(getTaskCount(member.displayName))">
+                          {{ getTaskCount(member.displayName) }} Tasks
+                        </span>
+                      </div>
+                      <div class="progress mt-2">
+                        <div class="progress-bar" 
+                            [ngClass]="getProgressBarClass(getTaskCount(member.displayName))"
+                            [style.width.%]="getWorkloadPercentage(getTaskCount(member.displayName))" 
+                            role="progressbar" 
+                            [attr.aria-valuenow]="getTaskCount(member.displayName)" 
+                            aria-valuemin="0" 
+                            aria-valuemax="10">
+                        </div>
+                      </div>
+                      <div *ngIf="member.email" class="text-muted mt-2 small">
+                        <i class="bi bi-envelope"></i> {{ member.email }}
+                      </div>
                     </div>
-                  </div>
-                  <div *ngIf="member.email" class="text-muted mt-2 small">
-                    <i class="bi bi-envelope"></i> {{ member.email }}
                   </div>
                 </div>
               </div>
