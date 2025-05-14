@@ -227,4 +227,161 @@ select.form-select option {
 .team-member-options .form-check:has(.form-check-input:checked) {
   background-color: rgba(13, 110, 253, 0.05);
   border-color: #0d6efd !important;
+}
+
+/* Search section styling */
+.search-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: nowrap;
+  margin-bottom: 1rem;
+}
+
+.input-group-container {
+  display: flex;
+  align-items: center;
+  background-color: #CCEBFF;
+  border: 1px solid #A8D8F0;
+  border-radius: 4px;
+  padding: 8px 12px;
+  gap: 12px;
+  flex-grow: 1;
+  
+  color: #333;
+  
+  input::placeholder {
+    color: #6c757d;
+  }
+  
+  small.text-muted {
+    color: #6c757d !important;
+  }
+  
+  .form-check-input {
+    background-color: white;
+    border-color: #a8d8f0;
+  }
+  
+  .form-check-label {
+    color: #333;
+  }
+  
+  .search-btn {
+    background-color: #0d6efd;
+    color: white;
+    border: none;
+    font-weight: 500;
+  }
+  
+  .search-btn:hover {
+    background-color: #0b5ed7;
+    color: white;
+  }
+}
+
+.search-input {
+  min-width: 180px;
+  margin-bottom: 0;
+}
+
+/* Style the team name input when filter is disabled */
+.search-input input[disabled] {
+  background-color: #e9ecef;
+  opacity: 0.65;
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+.filter-checkbox input[type="checkbox"] {
+  transform: scale(1.2);
+  margin-right: 6px;
+  cursor: pointer;
+}
+
+.filter-checkbox input[type="checkbox"]:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.filter-checkbox .form-check-label {
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.search-btn, .auto-assign-btn {
+  white-space: nowrap;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .search-section {
+    flex-wrap: wrap;
+  }
+  
+  .input-group-container {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  
+  .action-buttons {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 992px) {
+  .input-group-container {
+    flex-wrap: wrap;
+  }
+  
+  .filter-checkbox {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  
+  .search-input {
+    min-width: 160px;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 8px;
+    margin-left: 0;
+    width: 100%;
+  }
+  
+  .search-btn, .auto-assign-btn {
+    flex: 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .search-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .search-input {
+    width: 100%;
+  }
+}
+
+.team-input {
+  margin-left: 8px;
+}
+
+/* Make the hover state for the checkbox more obvious */
+.filter-checkbox:hover .form-check-input {
+  border-color: #0d6efd;
 } 

@@ -30,6 +30,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
   teamName: string = 'RND'; // Default team name
   iterationPaths: string[] = []; // Will be loaded from API
   teamMemberTaskCounts: Record<string, number> = {}; // Added for task counts
+  applyTeamFilter: boolean = true; // Whether to apply team name filter
   
   // Auto-assign preview properties
   showingPreview: boolean = false;
@@ -203,6 +204,8 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     this.error.tasks = null;
     this.error.members = null;
     
+    console.log(`Searching with team filter ${this.applyTeamFilter ? 'enabled' : 'disabled'}`);
+    
     // Load data based on the manual inputs
     this.loadTasks();
     this.loadTeamMembers();
@@ -238,57 +241,89 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     this.loading.members = true;
     this.error.members = null;
 
-    // Use the teamService directly to get team members by team name
-    this.teamService.getTeamMembersByTeam(this.teamName, this.currentIterationPath).subscribe({
-      next: (teamMembers) => {
-        this.teamMembers = teamMembers;
-        console.log(`Loaded ${this.teamName} team members:`, this.teamMembers);
-        this.loading.members = false;
-        
-        // Filter out non-R&D team members
-        this.filterRnDTeamMembers();
-        
-        // Load team member task counts after loading team members
-        this.loadTeamMemberTaskCounts();
-        
-        // If tasks are already loaded, update workload
-        if (this.tasks.length > 0) {
-          this.updateTeamWorkload();
-        } else {
-          // If no tasks are loaded yet, still show the team members
-          console.log('No tasks loaded yet, showing filtered team members');
-        }
-      },
-      error: (err) => {
-        console.error(`Error loading ${this.teamName} team members:`, err);
-        
-        // Fallback to regular team members if team-specific call fails
-        this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
-          next: (response) => {
-            // Process the response as an array of TeamMember objects
-            if (Array.isArray(response)) {
-              this.teamMembers = response as TeamMember[];
-              
-              // Filter out non-R&D team members
-              this.filterRnDTeamMembers();
-              
-              // If tasks are already loaded, update team workload data
-              if (this.tasks.length > 0) {
-                this.updateTeamWorkload();
-              }
-            } else {
-              console.error('Unexpected response format from getTeamMembers:', response);
-              this.error.members = 'Failed to load team members: Invalid response format';
-            }
-            
-            this.loading.members = false;
-          },
-          error: (memberErr) => {
-            console.error(`Error loading team members for iteration path ${this.currentIterationPath}:`, memberErr);
-            this.error.members = `Failed to load team members: ${memberErr.message}`;
-            this.loading.members = false;
+    // Use the teamService directly to get team members by team name if filter is applied
+    // Otherwise, just get all team members
+    if (this.applyTeamFilter) {
+      this.teamService.getTeamMembersByTeam(this.teamName, this.currentIterationPath).subscribe({
+        next: (teamMembers) => {
+          this.teamMembers = teamMembers;
+          console.log(`Loaded ${this.teamName} team members:`, this.teamMembers);
+          this.loading.members = false;
+          
+          // Filter out non-R&D team members
+          this.filterRnDTeamMembers();
+          
+          // Load team member task counts after loading team members
+          this.loadTeamMemberTaskCounts();
+          
+          // If tasks are already loaded, update workload
+          if (this.tasks.length > 0) {
+            this.updateTeamWorkload();
+          } else {
+            // If no tasks are loaded yet, still show the team members
+            console.log('No tasks loaded yet, showing filtered team members');
           }
-        });
+        },
+        error: (err) => {
+          console.error(`Error loading ${this.teamName} team members:`, err);
+          
+          // Fallback to regular team members if team-specific call fails
+          this.loadAllTeamMembers();
+        }
+      });
+    } else {
+      // If team filter is not applied, load all team members
+      this.loadAllTeamMembers();
+    }
+  }
+
+  /**
+   * Helper method to load all team members without team filter
+   */
+  private loadAllTeamMembers(): void {
+    this.taskService.getTeamMembers(this.currentIterationPath).subscribe({
+      next: (response) => {
+        // Process the response as an array of TeamMember objects
+        if (Array.isArray(response)) {
+          // Handle string array response - convert strings to TeamMember objects
+          if (response.length > 0 && typeof response[0] === 'string') {
+            this.teamMembers = (response as string[]).map((name, index) => ({
+              id: `member-${index}`,
+              displayName: name,
+              uniqueName: '',
+              currentWorkload: 0,
+              isActive: true,
+              email: '',
+              team: this.applyTeamFilter ? this.teamName : ''
+            }));
+          } else {
+            // It's already an array of TeamMember objects
+            this.teamMembers = response as TeamMember[];
+          }
+          
+          // If team filter is applied, still filter out non-R&D team members
+          if (this.applyTeamFilter) {
+            this.filterRnDTeamMembers();
+          } else {
+            // If not applying team filter, all team members are filtered
+            this.filteredTeamMembers = this.teamMembers;
+          }
+          
+          // If tasks are already loaded, update team workload data
+          if (this.tasks.length > 0) {
+            this.updateTeamWorkload();
+          }
+        } else {
+          console.error('Unexpected response format from getTeamMembers:', response);
+          this.error.members = 'Failed to load team members: Invalid response format';
+        }
+        
+        this.loading.members = false;
+      },
+      error: (memberErr) => {
+        console.error(`Error loading team members for iteration path ${this.currentIterationPath}:`, memberErr);
+        this.error.members = `Failed to load team members: ${memberErr.message}`;
+        this.loading.members = false;
       }
     });
   }
@@ -297,8 +332,30 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    * Filter team members to only include R&D team members
    */
   filterRnDTeamMembers(): void {
+    // Convert any string team members to objects first
+    this.teamMembers = this.teamMembers.map((member, index) => {
+      if (typeof member === 'string') {
+        return {
+          id: `member-${index}`,
+          displayName: member,
+          uniqueName: '',
+          currentWorkload: 0,
+          isActive: true,
+          email: '',
+          team: this.applyTeamFilter ? this.teamName : ''
+        };
+      }
+      return member;
+    });
+    
     // Filter out members that don't have an R&D-related team property
     this.filteredTeamMembers = this.teamMembers.filter(member => {
+      // Ensure member is an object
+      if (typeof member !== 'object') {
+        console.warn(`Unexpected member type in filterRnDTeamMembers: ${typeof member}`);
+        return false;
+      }
+      
       // If member has a team property and it contains R&D-related terms
       if (member.team) {
         return member.team.toLowerCase().includes('r&d') || 
@@ -352,12 +409,34 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     
     // Reset all workloads to 0 for all team members
     this.teamMembers.forEach(member => {
-      member.currentWorkload = 0;
+      // Ensure member is a TeamMember object and not a string
+      if (typeof member === 'string') {
+        console.warn(`Found string member instead of object: ${member}`);
+        // Convert string to TeamMember object if needed
+        const index = this.teamMembers.indexOf(member);
+        if (index >= 0) {
+          this.teamMembers[index] = {
+            id: `member-${index}`,
+            displayName: member,
+            uniqueName: '',
+            currentWorkload: 0,
+            isActive: true,
+            email: '',
+            team: this.applyTeamFilter ? this.teamName : ''
+          };
+        }
+      } else {
+        // Reset workload for object
+        member.currentWorkload = 0;
+      }
     });
     
     // If we have task counts from the API, use those
     if (Object.keys(this.teamMemberTaskCounts).length > 0) {
       this.teamMembers.forEach(member => {
+        // Skip if member is not an object
+        if (typeof member === 'string') return;
+        
         // Try to find this member in the task counts
         const counts = Object.entries(this.teamMemberTaskCounts).find(
           ([name, _]) => name.toLowerCase() === member.displayName.toLowerCase()
@@ -376,7 +455,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
           
           // Find matching team member
           const matchedMember = this.teamMembers.find(member => 
-            member.displayName.toLowerCase() === normalizedAssignedTo
+            typeof member === 'object' && member.displayName.toLowerCase() === normalizedAssignedTo
           );
           
           if (matchedMember) {
@@ -386,10 +465,16 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
       });
     }
     
-    // Re-apply R&D filter to ensure we only show R&D team members
-    this.filterRnDTeamMembers();
+    // Only filter for R&D team members if team filter is applied
+    if (this.applyTeamFilter) {
+      // Re-apply R&D filter to ensure we only show R&D team members
+      this.filterRnDTeamMembers();
+    } else {
+      // If filter not applied, use all team members
+      this.filteredTeamMembers = this.teamMembers;
+    }
     
-    // Also filter tasks to match R&D team members
+    // Also filter tasks to match team members or show all if filter not applied
     this.filterTasksByRnDTeamMembers();
     
     console.log('Updated team workload for filtered members:', this.filteredTeamMembers);
@@ -707,7 +792,8 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
                       uniqueName: '',
                       currentWorkload: 0,
                       isActive: true,
-                      email: ''
+                      email: '',
+                      team: this.applyTeamFilter ? this.teamName : ''
                     }));
                   } else {
                     // TeamMember array response
@@ -922,6 +1008,11 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    * @returns The number of tasks assigned to that member
    */
   getTaskCount(memberName: string): number {
+    if (!memberName) {
+      console.warn('Called getTaskCount with empty memberName');
+      return 0;
+    }
+    
     // First check if we have task counts from the API
     if (Object.keys(this.teamMemberTaskCounts).length > 0) {
       // Look for an exact match
@@ -931,7 +1022,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
       
       // Try case-insensitive match
       const key = Object.keys(this.teamMemberTaskCounts).find(
-        k => k.toLowerCase() === memberName.toLowerCase()
+        k => k && k.toLowerCase() === memberName.toLowerCase()
       );
       
       if (key) {
@@ -941,10 +1032,10 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     
     // Fall back to the currentWorkload from team members
     const member = this.teamMembers.find(
-      m => m.displayName.toLowerCase() === memberName.toLowerCase()
+      m => typeof m === 'object' && m.displayName && m.displayName.toLowerCase() === memberName.toLowerCase()
     );
     
-    return member ? member.currentWorkload : 0;
+    return member && typeof member === 'object' ? member.currentWorkload : 0;
   }
 
   /**
@@ -991,6 +1082,13 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    * Filter tasks to only show those assigned to R&D team members
    */
   filterTasksByRnDTeamMembers(): void {
+    // If team filter is not applied, show all tasks
+    if (!this.applyTeamFilter) {
+      this.filteredTasks = this.tasks;
+      console.log(`Team filter disabled. Showing all ${this.tasks.length} tasks.`);
+      return;
+    }
+    
     // First ensure we have filtered team members
     if (this.filteredTeamMembers.length === 0) {
       this.filterRnDTeamMembers();

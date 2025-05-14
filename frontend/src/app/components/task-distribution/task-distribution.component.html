@@ -5,49 +5,62 @@
         <h2 class="mb-0">Task Distribution</h2>
         <div>
           <!-- Manual Input Form -->
-          <div class="d-flex">
-            <!-- Team Name Input -->
-            <div class="me-2">
-              <input type="text" class="form-control" placeholder="Team Name" [(ngModel)]="teamName" 
-                [disabled]="loading.tasks || loading.members">
-              <small class="text-muted">e.g., RND</small>
-            </div>
-            
-            <!-- Iteration Path Input -->
-            <div class="me-2">
-              <input type="text" class="form-control" placeholder="Iteration Path" [(ngModel)]="manualIterationPath" 
-                [disabled]="loading.tasks || loading.members" list="iterationPathsList">
-              <small class="text-muted">e.g., Techoil\2.3.23</small>
+          <div class="search-section">
+            <!-- Grouped inputs with blue background -->
+            <div class="input-group-container">
+              <!-- Team Filter Checkbox and Label -->
+              <div class="filter-checkbox">
+                <input type="checkbox" class="form-check-input" id="applyTeamFilter" [(ngModel)]="applyTeamFilter"
+                  [disabled]="loading.tasks || loading.members">
+                <label class="form-check-label" for="applyTeamFilter">Apply Team Filter</label>
+              </div>
               
-              <!-- Datalist for iteration path suggestions -->
-              <datalist id="iterationPathsList">
-                <option *ngFor="let path of iterationPaths" [value]="path"></option>
-              </datalist>
+              <!-- Team Name Input -->
+              <div class="search-input team-input">
+                <input type="text" class="form-control" placeholder="Team Name" [(ngModel)]="teamName" 
+                  [disabled]="loading.tasks || loading.members">
+                <small class="text-muted">TeamName</small>
+              </div>
+              
+              <!-- Iteration Path Input -->
+              <div class="search-input">
+                <input type="text" class="form-control" placeholder="Iteration Path" [(ngModel)]="manualIterationPath" 
+                  [disabled]="loading.tasks || loading.members" list="iterationPathsList">
+                <small class="text-muted">IterationPath</small>
+                
+                <!-- Datalist for iteration path suggestions -->
+                <datalist id="iterationPathsList">
+                  <option *ngFor="let path of iterationPaths" [value]="path"></option>
+                </datalist>
+              </div>
+              
+              <!-- Search Button -->
+              <button class="btn btn-primary search-btn" (click)="searchClicked()" [disabled]="loading.tasks || loading.members">
+                <i class="bi bi-search me-1"></i>
+                <span *ngIf="!loading.tasks && !loading.members">Search</span>
+                <span *ngIf="loading.tasks || loading.members">
+                  <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  Loading...
+                </span>
+              </button>
             </div>
             
-            <!-- Search Button -->
-            <button class="btn btn-primary me-2" (click)="searchClicked()" [disabled]="loading.tasks || loading.members">
-              <i class="bi bi-search me-1"></i>
-              <span *ngIf="!loading.tasks && !loading.members">Search</span>
-              <span *ngIf="loading.tasks || loading.members">
-                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                Loading...
-              </span>
-            </button>
-            
-            <!-- Auto Assign Button -->
-            <button class="btn btn-primary" (click)="showAutoAssignPreview()" [disabled]="loading.autoAssign || loading.preview">
-              <i class="bi bi-magic"></i> 
-              <span *ngIf="!loading.autoAssign && !loading.preview">Auto-Assign Tasks</span>
-              <span *ngIf="loading.preview">
-                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                Loading Preview...
-              </span>
-              <span *ngIf="loading.autoAssign">
-                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                Assigning...
-              </span>
-            </button>
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+              <!-- Auto Assign Button -->
+              <button class="btn btn-primary auto-assign-btn" (click)="showAutoAssignPreview()" [disabled]="loading.autoAssign || loading.preview">
+                <i class="bi bi-magic"></i> 
+                <span *ngIf="!loading.autoAssign && !loading.preview">Auto-Assign Tasks</span>
+                <span *ngIf="loading.preview">
+                  <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  Loading Preview...
+                </span>
+                <span *ngIf="loading.autoAssign">
+                  <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                  Assigning...
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
