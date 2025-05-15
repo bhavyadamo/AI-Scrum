@@ -121,7 +121,9 @@
                   </thead>
                   <tbody>
                     <tr *ngFor="let task of filteredTasks">
-                      <td>{{ task.id }}</td>
+                      <td>
+                        <a href="#" (click)="openTaskInAzureDevOps(task.id, $event)" class="task-id-link">{{ task.id }}</a>
+                      </td>
                       <td>{{ task.title }}</td>
                       <td>
                         <span class="badge rounded-pill" [ngClass]="getPriorityClass(task.priority)">
@@ -189,9 +191,17 @@
                 <div *ngFor="let member of filteredTeamMembers" class="col-md-3 col-sm-6 mb-3">
                   <div class="card team-member-card h-100" [ngClass]="{'bg-light': getTaskCount(member.displayName) === 0}">
                     <div class="card-body">
-                      <h5 class="card-title">{{ member.displayName }}</h5>
+                      <h5 class="card-title">
+                        <a href="#" class="member-name-link" (click)="showMemberTasksModal($event, member.displayName)" 
+                           [attr.aria-label]="'View ' + member.displayName + '\'s tasks'">
+                          {{ member.displayName }}
+                        </a>
+                      </h5>
                       <div class="workload-stats mt-2">
-                        <span class="badge rounded-pill" [ngClass]="getTeamMemberWorkloadClass(getTaskCount(member.displayName))">
+                        <span class="badge rounded-pill task-count-badge" 
+                              [ngClass]="getTeamMemberWorkloadClass(getTaskCount(member.displayName))"
+                              (click)="showMemberTasks($event, member.displayName)"
+                              style="cursor: pointer;">
                           {{ getTaskCount(member.displayName) }} Tasks
                         </span>
                       </div>
@@ -350,7 +360,9 @@
                           </thead>
                           <tbody>
                             <tr *ngFor="let task of getDevNewTasks()">
-                              <td>{{ task.id }}</td>
+                              <td>
+                                <a href="#" (click)="openTaskInAzureDevOps(task.id, $event)" class="task-id-link">{{ task.id }}</a>
+                              </td>
                               <td>{{ task.title }}</td>
                               <td>{{ task.status }}</td>
                               <td>{{ task.assignedTo || 'Unassigned' }}</td>
@@ -390,7 +402,9 @@
                 </thead>
                 <tbody>
                   <tr *ngFor="let task of assignPreviewTasks">
-                    <td>{{ task.id }}</td>
+                    <td>
+                      <a href="#" (click)="openTaskInAzureDevOps(task.id, $event)" class="task-id-link">{{ task.id }}</a>
+                    </td>
                     <td>
                       <span class="badge bg-info text-dark">{{ task.type }}</span>
                     </td>
@@ -466,4 +480,88 @@
     </div>
   </div>
   <div class="modal-backdrop fade show" *ngIf="showingPreview"></div>
+  
+  <!-- Task List Popup -->
+  <div class="task-popup" *ngIf="showTaskPopup" 
+       (click)="keepPopupOpen($event)"
+       [style.top.px]="popupPosition.top" 
+       [style.left.px]="popupPosition.left">
+    <div class="task-popup-header">
+      <h5>{{ selectedMemberName }}'s Tasks</h5>
+      <button type="button" class="btn-close" (click)="closePopup()"></button>
+    </div>
+    <div class="task-popup-body">
+      <div *ngIf="selectedMemberTasks.length === 0" class="text-center py-3">
+        <p class="text-muted mb-0">No tasks found for this team member.</p>
+      </div>
+      <ul class="task-list" *ngIf="selectedMemberTasks.length > 0">
+        <li *ngFor="let task of selectedMemberTasks" class="task-item">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <a href="#" (click)="openTaskInAzureDevOps(task.id, $event)" class="task-id-link">{{ task.id }}</a>
+              <span class="ms-2">{{ task.title }}</span>
+            </div>
+            <span class="status-badge" [ngClass]="getStatusClass(task.status)">
+              {{ task.status }}
+            </span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+  
+  <!-- Member Tasks Modal -->
+  <div class="member-modal-backdrop" *ngIf="showMemberModal" (click)="closeMemberModal()">
+    <div class="member-modal" (click)="$event.stopPropagation()" (keydown)="handleModalKeydown($event)" role="dialog" aria-modal="true" 
+         [attr.aria-labelledby]="'memberModalTitle'" tabindex="-1">
+      <div class="member-modal-content">
+        <div class="member-modal-header">
+          <h2 class="member-modal-title" id="memberModalTitle">
+            <i class="bi bi-person-badge me-2"></i>{{ selectedModalMemberName }}'s Tasks
+          </h2>
+          <button type="button" class="member-modal-close" aria-label="Close" (click)="closeMemberModal()">
+            <i class="bi bi-x" style="font-size: 1.5rem;"></i>
+          </button>
+        </div>
+        
+        <!-- Loading State -->
+        <div class="member-modal-loading" *ngIf="loading.memberTasks">
+          <div class="spinner" role="status"></div>
+          <p class="loading-text">Loading tasks...</p>
+        </div>
+        
+        <!-- Error State -->
+        <div class="member-modal-error" *ngIf="error.memberTasks">
+          <i class="bi bi-exclamation-circle me-2"></i>
+          {{ error.memberTasks }}
+        </div>
+        
+        <!-- Content -->
+        <div class="px-4 py-3" *ngIf="!loading.memberTasks && !error.memberTasks">
+          <!-- No Tasks Message -->
+          <div *ngIf="selectedModalMemberTasks.length === 0" class="text-center py-4">
+            <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+            <p class="mt-3 text-muted">No tasks assigned to {{ selectedModalMemberName }}</p>
+          </div>
+          
+          <!-- Task List -->
+          <ul class="member-task-list" *ngIf="selectedModalMemberTasks.length > 0">
+            <li *ngFor="let task of selectedModalMemberTasks" class="task-item">
+              <div class="task-header">
+                <a href="#" (click)="openTaskInAzureDevOps(task.id, $event)" class="task-id">#{{ task.id }}</a>
+                <span class="task-status" [ngClass]="getStatusClass(task.status)">{{ task.status }}</span>
+              </div>
+              <div class="task-title">{{ task.title }}</div>
+            </li>
+          </ul>
+        </div>
+        
+        <div class="member-modal-footer">
+          <button type="button" class="member-modal-btn primary" (click)="closeMemberModal()">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div> 

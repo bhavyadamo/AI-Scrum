@@ -1,8 +1,9 @@
-import { Component, OnInit, AfterViewInit } from '@angular/core';
+import { Component, OnInit, AfterViewInit, HostListener } from '@angular/core';
 import { TaskService } from '../../services/task.service';
 import { TeamService } from '../../services/team.service';
 import { WorkItem, TeamMember } from '../../models/task.model';
 import { forkJoin } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 // Declare the global bootstrap variable for TypeScript
 declare global {
@@ -49,6 +50,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     iterationPaths: boolean;
     taskCounts: boolean; // Added for task counts loading
     preview: boolean; // Added for auto-assign preview loading
+    memberTasks: boolean; // Added for loading member tasks in the modal
   } = {
     tasks: false,
     members: false,
@@ -56,7 +58,8 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     autoAssign: false,
     iterationPaths: false,
     taskCounts: false, // Added for task counts loading
-    preview: false // Added for auto-assign preview loading
+    preview: false, // Added for auto-assign preview loading
+    memberTasks: false // Added for loading member tasks in the modal
   };
   
   // Convert simple string to object with specific error states
@@ -68,6 +71,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     iterationPaths: string | null;
     taskCounts: string | null; // Added for task counts errors
     preview: string | null; // Added for auto-assign preview errors
+    memberTasks: string | null; // Added for member tasks errors
   } = {
     tasks: null,
     members: null,
@@ -75,8 +79,26 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     autoAssign: null,
     iterationPaths: null,
     taskCounts: null, // Added for task counts errors
-    preview: null // Added for auto-assign preview errors
+    preview: null, // Added for auto-assign preview errors
+    memberTasks: null // Added for member tasks errors
   };
+
+  // Azure DevOps URL components from environment
+  private azureDevOpsUrl: string = environment.azureDevOpsUrl;
+  private organization: string = environment.organization;
+  private project: string = environment.project;
+
+  // Task popup properties
+  showTaskPopup: boolean = false;
+  popupPosition = { top: 0, left: 0 };
+  selectedMemberTasks: WorkItem[] = [];
+  selectedMemberName: string = '';
+  
+  // Member modal properties
+  showMemberModal: boolean = false;
+  selectedModalMemberName: string = '';
+  selectedModalMemberTasks: WorkItem[] = [];
+  lastFocusedElement: HTMLElement | null = null;
 
   constructor(
     private taskService: TaskService,
@@ -1274,5 +1296,210 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     });
     
     console.log(`Filtered ${this.tasks.length} tasks down to ${this.filteredTasks.length} tasks assigned to R&D members or unassigned`);
+  }
+
+  /**
+   * Generates an Azure DevOps URL for a specific work item ID
+   * @param taskId The ID of the work item to link to
+   * @returns A URL to the work item in Azure DevOps
+   */
+  getAzureDevOpsTaskUrl(taskId: number): string {
+    return `${this.azureDevOpsUrl}/${this.organization}/${this.project}/_workitems/edit/${taskId}/`;
+  }
+
+  /**
+   * Open task in Azure DevOps in a new tab
+   * @param taskId The ID of the task to open
+   * @param event The click event
+   */
+  openTaskInAzureDevOps(taskId: number, event: Event): void {
+    // Prevent default behavior to avoid interference with other actions
+    event.preventDefault();
+    event.stopPropagation();
+    
+    // Open task in new tab
+    const url = this.getAzureDevOpsTaskUrl(taskId);
+    window.open(url, '_blank');
+    
+    console.log(`Opening task ${taskId} in Azure DevOps`);
+  }
+
+  /**
+   * Show popup with tasks for a specific team member
+   * @param event Click event
+   * @param memberName Name of the team member
+   */
+  showMemberTasks(event: MouseEvent, memberName: string): void {
+    // Prevent event propagation to avoid immediate closing
+    event.preventDefault();
+    event.stopPropagation();
+    
+    console.log(`Showing tasks for ${memberName}, fetching from ${this.tasks.length} total tasks`);
+    
+    // Get tasks for this member - search in all tasks, not just filtered tasks
+    this.selectedMemberTasks = this.tasks.filter(
+      task => task.assignedTo && task.assignedTo.toLowerCase() === memberName.toLowerCase()
+    );
+    
+    this.selectedMemberName = memberName;
+    
+    // Calculate popup position - position it near the clicked element but ensure it's visible
+    const clickedElement = event.currentTarget as HTMLElement;
+    const rect = clickedElement.getBoundingClientRect();
+    
+    // Adjust position to ensure popup is visible within viewport
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const popupWidth = 400; // Same as in CSS
+    const popupHeight = Math.min(300, this.selectedMemberTasks.length * 50 + 100); // Rough estimate
+    
+    // Position popup below the badge, but adjust if near viewport edges
+    let left = rect.left;
+    if (left + popupWidth > viewportWidth) {
+      left = Math.max(10, viewportWidth - popupWidth - 10);
+    }
+    
+    let top = rect.bottom + window.scrollY;
+    if (top + popupHeight > viewportHeight + window.scrollY) {
+      // Position above if not enough space below
+      top = Math.max(10 + window.scrollY, rect.top + window.scrollY - popupHeight);
+    }
+    
+    this.popupPosition = { top, left };
+    
+    // Make sure popup is shown
+    this.showTaskPopup = true;
+    
+    console.log(`Showing tasks popup for ${memberName}: ${this.selectedMemberTasks.length} tasks at position:`, this.popupPosition);
+  }
+  
+  /**
+   * Close the task popup when clicking outside
+   */
+  @HostListener('document:click', ['$event'])
+  closePopup(event?: MouseEvent): void {
+    if (!event) return;
+    
+    // Don't close if this is the initial click that opened the popup or modal
+    if (event.target && (
+        (event.target as HTMLElement).closest('.task-count-badge') ||
+        (event.target as HTMLElement).closest('.member-name-link')
+      )) {
+      return;
+    }
+    
+    // Close task popup if it's open and click is outside
+    if (this.showTaskPopup && !(event.target as HTMLElement).closest('.task-popup')) {
+      this.showTaskPopup = false;
+    }
+    
+    // Close member modal if it's open and click is outside
+    if (this.showMemberModal && !(event.target as HTMLElement).closest('.member-modal-content')) {
+      this.closeMemberModal();
+    }
+  }
+  
+  /**
+   * Prevent popup from closing when clicking inside it
+   * @param event Click event
+   */
+  keepPopupOpen(event: Event): void {
+    event.stopPropagation();
+  }
+
+  /**
+   * Show modal with tasks for a specific team member
+   * @param event Click event 
+   * @param memberName Name of the team member
+   */
+  showMemberTasksModal(event: MouseEvent | KeyboardEvent, memberName: string): void {
+    // Prevent default behavior
+    event.preventDefault();
+    
+    // Store the last focused element for when we close the modal
+    this.lastFocusedElement = document.activeElement as HTMLElement;
+    
+    console.log(`Showing modal for ${memberName}, fetching from ${this.tasks.length} total tasks`);
+    
+    // Set loading state
+    this.loading.memberTasks = true;
+    this.error.memberTasks = null;
+    
+    // Clear previous data
+    this.selectedModalMemberTasks = [];
+    this.selectedModalMemberName = memberName;
+    
+    // Show the modal
+    this.showMemberModal = true;
+    
+    // Get tasks for this member - search in all tasks, not just filtered tasks
+    // We'll simulate an async call to match requirements
+    setTimeout(() => {
+      this.selectedModalMemberTasks = this.tasks.filter(
+        task => task.assignedTo && task.assignedTo.toLowerCase() === memberName.toLowerCase()
+      );
+      
+      this.loading.memberTasks = false;
+      
+      // Focus the close button in the modal for accessibility
+      setTimeout(() => {
+        const closeButton = document.querySelector('.member-modal-close') as HTMLElement;
+        if (closeButton) {
+          closeButton.focus();
+        }
+      }, 100);
+      
+      console.log(`Loaded ${this.selectedModalMemberTasks.length} tasks for ${memberName} in modal`);
+    }, 500); // Simulate network delay
+  }
+  
+  /**
+   * Close the member tasks modal
+   */
+  closeMemberModal(): void {
+    this.showMemberModal = false;
+    
+    // Return focus to the last focused element
+    setTimeout(() => {
+      if (this.lastFocusedElement) {
+        this.lastFocusedElement.focus();
+      }
+    }, 100);
+  }
+  
+  /**
+   * Handle keyboard interaction in the modal for accessibility
+   * @param event Keyboard event
+   */
+  handleModalKeydown(event: KeyboardEvent): void {
+    // Close modal on Escape key
+    if (event.key === 'Escape') {
+      this.closeMemberModal();
+    }
+    
+    // Trap focus inside the modal for accessibility
+    if (event.key === 'Tab') {
+      const modal = document.querySelector('.member-modal') as HTMLElement;
+      if (!modal) return;
+      
+      const focusableElements = modal.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      
+      if (focusableElements.length === 0) return;
+      
+      const firstElement = focusableElements[0] as HTMLElement;
+      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+      
+      if (event.shiftKey && document.activeElement === firstElement) {
+        // If shift+tab and focus is on first element, move to last element
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        // If tab and focus is on last element, move to first element
+        event.preventDefault();
+        firstElement.focus();
+      }
+    }
   }
 }
