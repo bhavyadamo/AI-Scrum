@@ -11,6 +11,16 @@ export interface WorkItem {
   type?: string;
   status?: string;
   autoAssignSuggestion?: string;
+  
+  // Timing data for historical analysis
+  actualHours?: number;         // Total actual hours spent
+  developmentHours?: number;    // Development time
+  testingHours?: number;        // Testing time
+  startDate?: string;           // When work began
+  completionDate?: string;      // When work was completed
+  originalEstimate?: number;    // The original estimate
+  remainingWork?: number;       // Remaining work if in progress
+  estimationAccuracy?: number;  // Ratio of actual to estimated time
 }
 
 /**
@@ -123,4 +133,31 @@ export enum WorkItemState {
   Resolved = 'Resolved',
   Closed = 'Closed',
   Removed = 'Removed'
+}
+
+// For historical work items with complete timing data
+export interface WorkItemHistory extends WorkItem {
+  completionState: string;      // The state when completed (Done, Closed, etc.)
+  lifecycleTime: number;        // Total time from creation to completion
+  cycleTime: number;            // Time from active to completion
+  stateChanges: StateChange[];  // State transition history
+  revisions: WorkItemRevision[]; // Revision history
+}
+
+// For tracking state changes in work item history
+export interface StateChange {
+  fromState: string;
+  toState: string;
+  changedDate: string;
+  changedBy: string;
+  durationInState: number;      // Hours spent in the previous state
+}
+
+// For tracking work item revisions
+export interface WorkItemRevision {
+  revisedDate: string;
+  revisedBy: string;
+  fields: {
+    [key: string]: any;
+  };
 } 

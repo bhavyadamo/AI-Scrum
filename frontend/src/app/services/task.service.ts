@@ -214,6 +214,54 @@ export class TaskService {
   }
 
   /**
+   * Get work item history data for a specific iteration
+   * This uses the existing getTasks endpoint but looks for completed work items
+   * @param iterationPath The iteration path to get history for
+   * @returns Observable of work items that can be used for historical analysis
+   */
+  getTaskHistory(iterationPath: string): Observable<WorkItem[]> {
+    // For now, we'll use the regular getTasks method since the history endpoint isn't available
+    console.log('Getting historical work items from iteration: ' + iterationPath);
+    
+    // We use the existing endpoint but will process the data to extract historical information
+    return this.getTasks(iterationPath).pipe(
+      map(items => {
+        console.log(`Received ${items.length} items for historical analysis`);
+        
+        // Filter to only include completed work items that would have historical data
+        const completedItems = items.filter(item => {
+          const state = item.state?.toLowerCase() || '';
+          return state.includes('done') || 
+                 state.includes('closed') || 
+                 state.includes('complete') ||
+                 state.includes('resolved');
+        });
+        
+        console.log(`Found ${completedItems.length} completed items with potential historical data`);
+        return completedItems;
+      })
+    );
+  }
+
+  /**
+   * Get detailed history for a specific work item, including state transitions
+   * This is useful for estimating time based on actual work item history
+   * @param workItemId The ID of the work item to get history for
+   * @returns Observable of the detailed work item history
+   */
+  getWorkItemWithHistory(workItemId: number): Observable<WorkItemDetails> {
+    console.log(`Getting detailed history for work item #${workItemId}`);
+    return this.http.get<WorkItemDetails>(`${this.apiUrl}/${workItemId}?includeHistory=true`)
+      .pipe(
+        tap(item => console.log(`Retrieved work item #${workItemId} with history`)),
+        catchError(error => {
+          console.error(`Error loading history for work item #${workItemId}:`, error);
+          return this.handleError(error, `loading work item #${workItemId} history`);
+        })
+      );
+  }
+
+  /**
    * Generic error handler for HTTP requests
    * @param error The HTTP error response
    * @param operation The operation that was being performed

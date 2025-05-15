@@ -115,7 +115,6 @@
                       <th>Title</th>
                       <th>Priority</th>
                       <th>Assigned To</th>
-                      <th>Status</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -142,11 +141,7 @@
                           </div>
                         </div>
                       </td>
-                      <td>
-                        <span class="status-badge" [ngClass]="getStatusClass(task.status)">
-                          {{ task.status }}
-                        </span>
-                      </td>
+
                       <td>
                         <button class="btn btn-primary btn-sm" (click)="openAssignModal(task.id)">
                           <i class="bi bi-person-plus"></i> Assign

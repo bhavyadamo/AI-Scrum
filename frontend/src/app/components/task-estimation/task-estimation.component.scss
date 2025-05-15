@@ -3,6 +3,18 @@ h2 {
   color: #2c3e50;
 }
 
+// Background for the entire component
+:host {
+  display: block;
+  background-color: #e8eaf6;
+}
+
+.container-fluid {
+  background-color: #e8eaf6;
+  padding-top: 1.5rem;
+  padding-bottom: 1.5rem;
+}
+
 .container {
   padding-top: 1.5rem;
 }
@@ -14,9 +26,20 @@ h2 {
 .card {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
+  background-color: #f5f7ff;
   
   &:hover {
     box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+  }
+  
+  .card-header {
+    background-color: #c5cae9;
+    color: #3949ab;
+    font-weight: 600;
+  }
+  
+  .card-body {
+    background-color: #f5f7ff;
   }
 }
 
@@ -55,4 +78,200 @@ h2 {
 
 .alert, .card {
   animation: fadeIn 0.3s ease-out;
+}
+
+// Custom styling for the work items table
+.table-responsive {
+  max-height: 450px;
+  overflow-y: auto;
+  background-color: #eef2ff;
+  border-radius: 0.375rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+// Enhanced table styling
+.table {
+  font-size: 0.9rem;
+  background-color: #eef2ff;
+  
+  thead {
+    position: sticky;
+    top: 0;
+    background-color: #c5cae9;
+    z-index: 1;
+    
+    th {
+      font-weight: 600;
+      color: #3949ab;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+      padding-top: 12px;
+      padding-bottom: 12px;
+      border-top: none;
+      border-bottom: 2px solid #9fa8da;
+    }
+  }
+  
+  tbody tr {
+    transition: background-color 0.2s;
+    background-color: #e8eaf6;
+    
+    &:nth-child(even) {
+      background-color: #d1d9ff;
+    }
+    
+    &:hover {
+      background-color: #c5cae9;
+    }
+    
+    &.table-primary {
+      background-color: #bbdefb;
+      
+      &:hover {
+        background-color: #90caf9;
+      }
+    }
+    
+    td {
+      vertical-align: middle;
+      padding: 0.75rem;
+      border-color: #c5cae9;
+    }
+  }
+  
+  .badge {
+    font-size: 0.75rem;
+  }
+}
+
+// Custom form styling
+.form-select, .form-control {
+  &.ng-touched.ng-valid {
+    border-color: #28a745;
+  }
+}
+
+// Improve radio buttons visibility
+.form-check-input:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+// State badge enhancements
+.badge {
+  padding: 0.5em 0.75em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-transform: capitalize;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  
+  // Code Review state - specific styling to match the image
+  &.badge-code-review {
+    background-color: #00c3f7 !important; // Bright blue like in the image
+    color: white;
+    font-weight: 600;
+    position: relative;
+    
+    &::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+      border-radius: inherit;
+    }
+  }
+  
+  // Code Review state (blue)
+  &.bg-info {
+    background-color: #17a2b8 !important;
+    color: white;
+  }
+  
+  // In Progress state (indigo)
+  &.bg-primary {
+    background-color: #6610f2 !important;
+    color: white;
+  }
+  
+  // Complete/Done state (green)
+  &.bg-success {
+    background-color: #28a745 !important;
+    color: white;
+  }
+  
+  // Pending/Wait state (amber)
+  &.bg-warning {
+    background-color: #ffc107 !important;
+    color: #212529;
+    font-weight: 700;
+  }
+  
+  // Failed/Blocked state (red)
+  &.bg-danger {
+    background-color: #dc3545 !important;
+    color: white;
+  }
+  
+  // New state (dark)
+  &.bg-dark {
+    background-color: #343a40 !important;
+    color: white;
+  }
+  
+  // Dev-New state (dark teal)
+  &.badge-dev-new {
+    background-color: #2c3e50 !important;
+    color: white;
+    font-weight: 600;
+  }
+  
+  // Ready/Assigned state (previously light with border)
+  &.bg-light {
+    background-color: #9575cd !important; // Light purple instead of white/gray
+    border: 1px solid #7e57c2 !important;
+    color: white !important;
+    
+    &.text-dark {
+      color: white !important;
+      font-weight: 700;
+    }
+  }
+  
+  // Default/Other states (previously gray)
+  &.bg-secondary {
+    background-color: #5c6bc0 !important; // Indigo instead of gray
+    color: white;
+  }
+  
+  // Type badges
+  &[class*="bg-"] {
+    border-radius: 12px;
+    transition: all 0.2s ease;
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+  }
+}
+
+// Apply some additional colors for specific state types that might have been missed
+.badge-ready {
+  background-color: #7986cb !important; // Indigo-300
+  color: white !important;
+}
+
+.badge-assigned {
+  background-color: #9fa8da !important; // Indigo-200
+  color: #3949ab !important;
+}
+
+.badge-na {
+  background-color: #5c6bc0 !important; // Indigo-400
+  color: white !important;
 } 
