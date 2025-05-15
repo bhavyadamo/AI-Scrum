@@ -65,4 +65,55 @@ h6 { font-size: 1.1rem; }
     font-size: 1.15rem !important;
     padding: 0.7rem 1rem;
   }
+}
+
+/* TailwindCSS-inspired utility classes */
+/* Text sizes */
+.text-xs { font-size: 0.75rem; }
+.text-sm { font-size: 0.875rem; }
+.text-base { font-size: 1rem; }
+.text-lg { font-size: 1.125rem; }
+.text-xl { font-size: 1.25rem; }
+.text-2xl { font-size: 1.5rem; }
+.text-3xl { font-size: 1.875rem; }
+.text-4xl { font-size: 2.25rem; }
+
+/* Font weights */
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+
+/* Margin & Padding */
+.mb-1 { margin-bottom: 0.25rem; }
+.p-3 { padding: 0.75rem; }
+.p-4 { padding: 1rem; }
+
+/* Dark colors for task status cards */
+.bg-blue-800 { background-color: #1e40af; }
+.bg-sky-700 { background-color: #0369a1; }  
+.bg-indigo-800 { background-color: #3730a3; }
+.bg-green-800 { background-color: #166534; }
+.bg-emerald-800 { background-color: #065f46; }
+.bg-purple-800 { background-color: #6b21a8; }
+.bg-gray-700 { background-color: #374151; }
+.bg-yellow-700 { background-color: #a16207; }
+.bg-orange-800 { background-color: #9a3412; }
+.bg-teal-800 { background-color: #115e59; }
+.bg-dev-in-progress { background-color: #2d0b8c; } /* Darker blue-violet for Dev In Progress */
+.bg-pink-800 { background-color: #9d174d; } /* Strong pink for Dev In Progress */
+.bright-pink { background-color: #d6006e !important; } /* Extra bright magenta that will override other styles */
+
+/* Direct fixes for Dev In progress card */
+div.text-lg:not([class*="text-white"]) {
+  color: white !important;
+}
+
+div.card-body:has(div.text-lg:contains("Dev In progress")) {
+  background-color: #d6006e !important; 
+}
+
+/* Force all task-state-card elements to have visible backgrounds */
+.card.task-state-card {
+  background-color: #333333 !important;
 } 

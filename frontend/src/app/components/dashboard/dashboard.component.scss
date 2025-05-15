@@ -188,18 +188,24 @@
 /* Task state cards styling */
 .task-state-card {
   border: none;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
+  min-height: 120px; /* Ensure consistent height */
   
   &:hover {
     transform: translateY(-4px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
   }
   
   .card-body {
-    padding: 1.5rem 1rem;
+    padding: 1.25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
   }
   
   h1 {
@@ -215,6 +221,108 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 100%;
+  }
+  
+  /* Ensure all text in status cards is white with good contrast */
+  .text-2xl, .text-lg {
+    color: white !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+}
+
+/* Individual status card colors */
+.status-active {
+  background-color: #3949ab !important; /* Indigo */
+  box-shadow: 0 4px 12px rgba(57, 73, 171, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(57, 73, 171, 0.7);
+  }
+}
+
+.status-code-review {
+  background-color: #00897b !important; /* Teal */
+  box-shadow: 0 4px 12px rgba(0, 137, 123, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(0, 137, 123, 0.7);
+  }
+}
+
+.status-dev-progress {
+  background-color: #d81b60 !important; /* Pink */
+  box-shadow: 0 4px 12px rgba(216, 27, 96, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(216, 27, 96, 0.7);
+  }
+}
+
+.status-dev-new {
+  background-color: #2e7d32 !important; /* Green */
+  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(46, 125, 50, 0.7);
+  }
+}
+
+.status-planned {
+  background-color: #5e35b1 !important; /* Deep Purple */
+  box-shadow: 0 4px 12px rgba(94, 53, 177, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(94, 53, 177, 0.7);
+  }
+}
+
+.status-cs-new {
+  background-color: #1565c0 !important; /* Blue */
+  box-shadow: 0 4px 12px rgba(21, 101, 192, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(21, 101, 192, 0.7);
+  }
+}
+
+.status-proposed {
+  background-color: #f4511e !important; /* Deep Orange */
+  box-shadow: 0 4px 12px rgba(244, 81, 30, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(244, 81, 30, 0.7);
+  }
+}
+
+.status-clarification {
+  background-color: #ce8c12 !important; /* Changed from Amber to Dark Orange for better text contrast */
+  box-shadow: 0 4px 12px rgba(230, 81, 0, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(230, 81, 0, 0.7);
+  }
+  
+  .text-2xl, .text-lg {
+    color: white !important;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); /* Stronger text shadow for better contrast */
+  }
+}
+
+.status-resolved {
+  background-color: #6a1b9a !important; /* Purple */
+  box-shadow: 0 4px 12px rgba(106, 27, 154, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(106, 27, 154, 0.7);
+  }
+}
+
+.status-verified {
+  background-color: #0277bd !important; /* Light Blue */
+  box-shadow: 0 4px 12px rgba(2, 119, 189, 0.5);
+  
+  &:hover {
+    box-shadow: 0 6px 16px rgba(2, 119, 189, 0.7);
   }
 }
 
@@ -273,4 +381,14 @@
       margin-right: 4px;
     }
   }
+}
+
+/* Specific targeting for Dev In progress text */
+.text-lg:contains("Dev In progress") {
+  color: #ffffff !important;
+}
+
+/* Make sure the card containing Dev In progress is visible */
+.card-body:has(.text-lg:contains("Dev In progress")) {
+  background-color: #d81b60 !important;
 } 

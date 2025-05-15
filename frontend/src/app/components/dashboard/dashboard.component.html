@@ -139,13 +139,24 @@
       </div>
       
       <!-- Task Status Cards -->
-      <div *ngIf="!loadingTaskDetails && taskStatusBoard && taskStatusBoard.length > 0" class="row">
-        <div *ngFor="let status of taskStatusBoard" class="col-md-2 mb-3">
-          <div class="card task-state-card h-100" [style.background-color]="status.color">
+      <div *ngIf="!loadingTaskDetails && taskStatusBoard && taskStatusBoard.length > 0" class="row g-3">
+        <div *ngFor="let status of taskStatusBoard" class="col-md-2 col-sm-4 col-6 mb-3">
+          <div class="card task-state-card h-100" 
+               [ngClass]="{
+                 'status-active': status.status === 'Active',
+                 'status-code-review': status.status === 'Code Review',
+                 'status-dev-progress': status.status === 'Dev In Progress' || status.status === 'Dev In progress' || status.status.toLowerCase().includes('dev') && status.status.toLowerCase().includes('progress'),
+                 'status-dev-new': status.status === 'Dev-New',
+                 'status-planned': status.status === 'Planned',
+                 'status-cs-new': status.status === 'CS-New',
+                 'status-proposed': status.status === 'Proposed',
+                 'status-clarification': status.status === 'Require Clarification',
+                 'status-resolved': status.status === 'Resolved',
+                 'status-verified': status.status === 'Verified'
+               }">
             <div class="card-body text-center text-white p-3">
-              <h1 class="mb-0 display-4 fw-bold">{{ status.count }}</h1>
-              <p class="mb-0 small status-label">{{ status.status }}</p>
-              <p class="mb-0 small status-label">Work Items</p>
+              <div class="text-2xl font-bold mb-1">{{ status.count }}</div>
+              <div class="text-lg">{{ status.status }}</div>
             </div>
           </div>
         </div>
