@@ -29,6 +29,9 @@
     <li class="nav-item">
       <a class="nav-link" data-bs-toggle="tab" href="#aiModel">AI Model</a>
     </li>
+    <li class="nav-item">
+      <a class="nav-link" data-bs-toggle="tab" href="#teamFilters">Team Filters</a>
+    </li>
   </ul>
 
   <!-- Tab content -->
@@ -41,6 +44,118 @@
     </div>
     <div class="tab-pane fade" id="aiModel">
       <app-ai-model-settings></app-ai-model-settings>
+    </div>
+    <div class="tab-pane fade" id="teamFilters">
+      <!-- Team Filters & Iteration Settings -->
+      <div class="card">
+        <div class="card-header">
+          <h5 class="mb-0">Team Filters & Iteration Settings</h5>
+        </div>
+        <div class="card-body">
+          <!-- Form for iteration settings -->
+          <form>
+            <div class="mb-4">
+              <h6>Iteration Path Settings</h6>
+              
+              <!-- Success message -->
+              <div *ngIf="successMessage" class="alert alert-success alert-dismissible fade show" role="alert">
+                {{ successMessage }}
+                <button type="button" class="btn-close" (click)="successMessage = ''"></button>
+              </div>
+              
+              <div class="form-group mb-3">
+                <label for="defaultIterationPath" class="form-label">Default Iteration Path</label>
+                <input type="text" class="form-control" id="defaultIterationPath" 
+                       placeholder="Enter default iteration path (e.g. Techoil\2.3.23)"
+                       [(ngModel)]="defaultIterationPath" name="defaultIterationPath">
+                <small class="form-text text-muted">This iteration path will be used by default in task distribution</small>
+              </div>
+              <div class="form-group">
+                <button type="button" class="btn btn-primary" (click)="saveIterationSettings()">
+                  Save Iteration Settings
+                </button>
+              </div>
+            </div>
+            
+            <hr>
+            
+            <!-- Team filter settings -->
+            <div class="mb-4">
+              <h6>Team Filters</h6>
+              <div class="form-check form-switch mb-3">
+                <input class="form-check-input" type="checkbox" id="enableTeamFilter" 
+                       [(ngModel)]="enableTeamFilter" name="enableTeamFilter">
+                <label class="form-check-label" for="enableTeamFilter">
+                  Enable RND Team Filtering for Auto-Assign
+                </label>
+              </div>
+              <div *ngIf="enableTeamFilter" class="card bg-light p-3 mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <div>
+                    <label for="teamName" class="form-label me-2">Team Name</label>
+                    <input type="text" class="form-control d-inline-block w-auto" 
+                           id="teamName" [(ngModel)]="teamName" name="teamName" value="RND">
+                  </div>
+                  <button type="button" class="btn btn-sm btn-primary" (click)="loadTeamMembers()">
+                    <i class="bi bi-arrow-repeat"></i> Load Team Members
+                  </button>
+                </div>
+                
+                <!-- Loading indicator -->
+                <div *ngIf="loadingTeamMembers" class="text-center py-2">
+                  <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
+                  <span class="ms-2">Loading team members...</span>
+                </div>
+                
+                <!-- Error message -->
+                <div *ngIf="teamMembersError" class="alert alert-danger alert-sm">
+                  {{ teamMembersError }}
+                </div>
+                
+                <!-- Team members selection -->
+                <div *ngIf="!loadingTeamMembers && teamMembers.length > 0" class="mb-3">
+                  <label class="form-label">
+                    Select Team Members for Auto-Assignment
+                  </label>
+                  <div *ngIf="teamMembers.length === 0" class="alert alert-warning">
+                    No team members found for team "{{teamName}}". API returned data but filtering may have removed all entries.
+                  </div>
+                  <div class="team-members-list">
+                    <div *ngFor="let member of teamMembers" class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" 
+                             [id]="'member-' + member.id" 
+                             [(ngModel)]="member.selected"
+                             name="teamMember{{member.id}}">
+                      <label class="form-check-label" [for]="'member-' + member.id">
+                        {{ member.displayName }}
+                        <small class="text-muted ms-2">
+                          <span class="badge bg-secondary">{{ member.team }}</span>
+                          <span *ngIf="member.currentWorkload && member.currentWorkload > 0" class="badge bg-info ms-1">
+                            {{ member.currentWorkload }} tasks
+                          </span>
+                        </small>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- No team members found -->
+                <div *ngIf="!loadingTeamMembers && teamMembers.length === 0 && !teamMembersError" class="alert alert-warning">
+                  No team members found. Please check the team name and try again.
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <button type="button" class="btn btn-primary" (click)="saveTeamFilterSettings()">
+                  Save Team Filter Settings <span *ngIf="getSelectedMembersCount() > 0" class="badge bg-light text-dark">{{ getSelectedMembersCount() }} selected</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   </div>
 </div> 

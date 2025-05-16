@@ -37,7 +37,7 @@
             </div>
           </div>
         </div>
-        <div class="card-body">
+        <div class="card-body" style="min-height: 316px; padding-bottom: 25px;">
           <div *ngIf="loading.sprint" class="text-center py-4">
             <div class="spinner-border text-primary" role="status">
               <span class="visually-hidden">Loading...</span>
@@ -81,18 +81,18 @@
         <div class="card-body d-flex flex-column" style="height: 350px;">
           <!-- Chat Messages -->
           <div class="chat-messages flex-grow-1 overflow-auto mb-3">
-            <div *ngIf="chatMessages.length === 0" class="text-center py-4">
+            <div *ngIf="chatMessages.length === 0" class="text-center py-3">
               <p class="text-muted">Ask me anything about your project or tasks.</p>
               <div class="chat-examples">
-                <h4>Try asking me:</h4>
-                <ul>
-                  <li>What are the current sprint details?</li>
-                  <li>How many tasks are in this sprint?</li>
-                  <li>Show me the work distribution by team member</li>
-                  <li>Who has the most tasks assigned?</li>
-                  <li>Can you assign task #123 to John?</li>
-                  <li>Suggest someone for the next task assignment</li>
-                  <li>What's the current sprint progress?</li>
+                <h6 class="mb-2">Try asking me:</h6>
+                <ul class="list-unstyled">
+                  <li class="mb-2"><span class="badge bg-primary me-2">➤</span> What are the current sprint details?</li>
+                  <li class="mb-2"><span class="badge bg-primary me-2">➤</span> How many tasks are in this sprint?</li>
+                  <li class="mb-2"><span class="badge bg-primary me-2">➤</span> Show me the work distribution by team member</li>
+                  <li class="mb-2"><span class="badge bg-primary me-2">➤</span> Who has the most tasks assigned?</li>
+                  <li class="mb-2"><span class="badge bg-success me-2">✓</span> Assign task #123 to John</li>
+                  <li class="mb-2"><span class="badge bg-primary me-2">➤</span> Suggest someone for the next task assignment</li>
+                  <li class="mb-2"><span class="badge bg-primary me-2">➤</span> What's the current sprint progress?</li>
                 </ul>
               </div>
             </div>
@@ -100,7 +100,7 @@
             <div *ngFor="let msg of chatMessages" class="message mb-2"
                  [ngClass]="{'user-message': msg.role === 'user', 'assistant-message': msg.role === 'assistant'}">
               <div class="message-content">
-                <div class="message-text">{{ msg.content }}</div>
+                <div class="message-text" [innerHTML]="msg.content"></div>
                 <div class="message-time small text-muted">{{ msg.timestamp | date:'shortTime' }}</div>
               </div>
             </div>
@@ -116,6 +116,10 @@
               <button class="btn btn-primary" type="button" (click)="sendChatMessage()">
                 <i class="bi bi-send"></i>
               </button>
+            </div>
+            <div class="mt-2 text-center small text-muted">
+              <span class="badge bg-success me-1">New!</span> 
+              You can now assign tasks by typing: "Assign task #123 to John"
             </div>
           </div>
         </div>
@@ -155,13 +159,13 @@
                  'status-active': status.status === 'Active',
                  'status-code-review': status.status === 'Code Review',
                  'status-dev-progress': status.status === 'Dev In Progress' || status.status === 'Dev In progress' || status.status.toLowerCase().includes('dev') && status.status.toLowerCase().includes('progress'),
-                 'status-dev-new': status.status === 'Dev-New',
+                 'status-dev-new': status.status === 'Dev-New' || status.status === 'New',
                  'status-planned': status.status === 'Planned',
-                 'status-cs-new': status.status === 'CS-New',
+                 'status-cs-new': status.status === 'CS-New' || status.status === 'CS-new',
                  'status-proposed': status.status === 'Proposed',
-                 'status-clarification': status.status === 'Require Clarification',
-                 'status-resolved': status.status === 'Resolved',
-                 'status-verified': status.status === 'Verified'
+                 'status-clarification': status.status === 'Require Clarification' || status.status.toLowerCase().includes('clarification'),
+                 'status-resolved': status.status === 'Resolved' || status.status === 'Done' || status.status === 'Completed',
+                 'status-verified': status.status === 'Verified' || status.status === 'Validated'
                }">
             <div class="card-body text-center text-white p-3">
               <div class="text-2xl font-bold mb-1">{{ status.count }}</div>

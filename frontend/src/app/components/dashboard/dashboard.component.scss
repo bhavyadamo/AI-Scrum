@@ -234,7 +234,6 @@ h2, .sprint-title {
   transition: all 0.3s ease;
   overflow: hidden;
   min-height: 120px; /* Ensure consistent height */
-  background-color: transparent !important; /* Ensure parent card is transparent */
   
   &:hover {
     transform: translateY(-5px);
@@ -357,6 +356,15 @@ h2, .sprint-title {
   
   .card-body {
     background-color: #00BFFF !important;
+  }
+}
+
+/* Default styling for any task state card that doesn't match the above classes */
+.task-state-card:not(.status-active):not(.status-code-review):not(.status-cs-new):not(.status-dev-progress):not(.status-dev-new):not(.status-planned):not(.status-proposed):not(.status-clarification):not(.status-resolved):not(.status-verified) {
+  background-color: #4B0082 !important; /* Indigo as default */
+  
+  .card-body {
+    background-color: #4B0082 !important;
   }
 }
 

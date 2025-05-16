@@ -132,6 +132,19 @@ export class DashboardService {
     });
   }
 
+  /**
+   * Process AI Assistant task assignment commands
+   * @param taskId The ID of the task to assign
+   * @param assignee The name of the person to assign the task to
+   * @returns Observable with the assignment result
+   */
+  processAiTaskAssignment(taskId: number, assignee: string): Observable<any> {
+    return this.http.post<any>(`${this.tasksApiUrl}/tasks/assign`, {
+      taskId,
+      assignedTo: assignee
+    });
+  }
+
   getSprintDetailsByIterationPath(iterationPath: string): Observable<SprintOverview> {
     const encodedPath = this.encodeIterationPath(iterationPath);
     let params = new HttpParams().set('iterationPath', encodedPath);

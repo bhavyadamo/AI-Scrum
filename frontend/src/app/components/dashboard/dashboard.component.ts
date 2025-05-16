@@ -773,44 +773,164 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     const message = this.currentMessage;
     this.currentMessage = '';
     
-    // Show loading indicator
-    this.chatMessages.push({
-      role: 'assistant',
-      content: 'Thinking...',
-      timestamp: new Date()
-    });
+    // Check if this is a task assignment request
+    // Match patterns like: "assign task #123 to john", "set task 123 for john doe", etc.
+    const assignTaskRegex = /(?:assign|set|give)\s+(?:task|item|work item)?(?:\s+#)?(\d+)\s+(?:to|for)\s+([a-zA-Z][a-zA-Z\s\.]+)/i;
+    const assignTaskMatch = message.match(assignTaskRegex);
     
-    // Call API to get response
-    this.dashboardService.sendChatMessage({
-      message: message,
-      currentIterationPath: this.selectedIterationPath
-    }).subscribe({
-      next: (response) => {
-        // Remove the loading indicator
-        this.chatMessages.pop();
-        
-        // Add the actual response
-        const assistantMessage: ChatMessage = {
-          role: 'assistant',
-          content: response.message,
-          timestamp: new Date()
-        };
-        this.chatMessages.push(assistantMessage);
-      },
-      error: (err) => {
-        // Remove the loading indicator
-        this.chatMessages.pop();
-        
-        console.error('Error getting chat response:', err);
-        // Add fallback response
-        const fallbackMessage: ChatMessage = {
-          role: 'assistant',
-          content: 'Sorry, I encountered an error processing your request. Please try again later.',
-          timestamp: new Date()
-        };
-        this.chatMessages.push(fallbackMessage);
-      }
-    });
+    // Check if this is a task lookup request
+    // Match patterns like: "show task #123", "find task 123", "what is task 123", etc.
+    const lookupTaskRegex = /(?:show|find|what is|get|lookup|look up|display|view)\s+(?:task|item|work item)(?:\s+#)?(\d+)/i;
+    const lookupTaskMatch = message.match(lookupTaskRegex);
+    
+    if (assignTaskMatch) {
+      // This is a task assignment command
+      const taskId = parseInt(assignTaskMatch[1]);
+      const assignee = assignTaskMatch[2].trim();
+      
+      // Show thinking message
+      this.chatMessages.push({
+        role: 'assistant',
+        content: `Assigning task #${taskId} to ${assignee}...`,
+        timestamp: new Date()
+      });
+      
+      // Process the assignment
+      this.dashboardService.processAiTaskAssignment(taskId, assignee).subscribe({
+        next: (response) => {
+          // Remove the thinking message
+          this.chatMessages.pop();
+          
+          // Add success message
+          this.chatMessages.push({
+            role: 'assistant',
+            content: `✅ Task #${taskId} has been successfully assigned to ${assignee}. The changes will be reflected in Azure DevOps.`,
+            timestamp: new Date()
+          });
+          
+          // Refresh task data to reflect the changes
+          this.loadTaskStatusBoard();
+        },
+        error: (err) => {
+          // Remove the thinking message
+          this.chatMessages.pop();
+          
+          console.error('Error assigning task:', err);
+          // Add error message
+          this.chatMessages.push({
+            role: 'assistant',
+            content: `❌ Sorry, I couldn't assign task #${taskId} to ${assignee}. ${err.error?.message || 'Please check if the task ID and assignee name are correct.'}`,
+            timestamp: new Date()
+          });
+        }
+      });
+    } else if (lookupTaskMatch) {
+      // This is a task lookup command
+      const taskId = parseInt(lookupTaskMatch[1]);
+      
+      // Show thinking message
+      this.chatMessages.push({
+        role: 'assistant',
+        content: `Looking up task #${taskId}...`,
+        timestamp: new Date()
+      });
+      
+      // Get task details
+      this.azureDevOpsService.getWorkItemById(taskId).subscribe({
+        next: (task: any) => {
+          // Remove the thinking message
+          this.chatMessages.pop();
+          
+          if (task) {
+            // Format task details as a response
+            const statusClass = task.state ? 
+              (task.state.toLowerCase().includes('active') ? 'text-primary' : 
+               task.state.toLowerCase().includes('new') ? 'text-success' : 
+               task.state.toLowerCase().includes('closed') ? 'text-secondary' : 'text-info') : 'text-info';
+              
+            const formattedMessage = `
+              <div class="task-details p-2 border rounded">
+                <h5>Task #${task.id}: ${task.title}</h5>
+                <ul class="list-unstyled mb-0">
+                  <li><strong>Status:</strong> <span class="${statusClass}">${task.state || 'Unknown'}</span></li>
+                  <li><strong>Assigned to:</strong> ${task.assignedTo || 'Unassigned'}</li>
+                  <li><strong>Iteration:</strong> ${this.decodeIterationPath(task.iterationPath)}</li>
+                  ${task.type ? `<li><strong>Type:</strong> ${task.type}</li>` : ''}
+                </ul>
+                <div class="mt-2">
+                  <small>You can assign this task by typing: "Assign task #${task.id} to [name]"</small>
+                </div>
+              </div>
+            `;
+            
+            // Add task details response
+            this.chatMessages.push({
+              role: 'assistant',
+              content: formattedMessage,
+              timestamp: new Date()
+            });
+          } else {
+            // Task not found
+            this.chatMessages.push({
+              role: 'assistant',
+              content: `❌ I couldn't find task #${taskId}. Please check if the ID is correct.`,
+              timestamp: new Date()
+            });
+          }
+        },
+        error: (err: any) => {
+          // Remove the thinking message
+          this.chatMessages.pop();
+          
+          console.error('Error looking up task:', err);
+          // Add error message
+          this.chatMessages.push({
+            role: 'assistant',
+            content: `❌ Sorry, I couldn't find information for task #${taskId}. ${err.error?.message || 'Please check if the task ID is correct.'}`,
+            timestamp: new Date()
+          });
+        }
+      });
+    } else {
+      // Show loading indicator for regular chat messages
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Thinking...',
+        timestamp: new Date()
+      });
+      
+      // Call API to get response for regular chat messages
+      this.dashboardService.sendChatMessage({
+        message: message,
+        currentIterationPath: this.selectedIterationPath
+      }).subscribe({
+        next: (response) => {
+          // Remove the loading indicator
+          this.chatMessages.pop();
+          
+          // Add the actual response
+          const assistantMessage: ChatMessage = {
+            role: 'assistant',
+            content: response.message,
+            timestamp: new Date()
+          };
+          this.chatMessages.push(assistantMessage);
+        },
+        error: (err) => {
+          // Remove the loading indicator
+          this.chatMessages.pop();
+          
+          console.error('Error getting chat response:', err);
+          // Add fallback response
+          const fallbackMessage: ChatMessage = {
+            role: 'assistant',
+            content: 'Sorry, I encountered an error processing your request. Please try again later.',
+            timestamp: new Date()
+          };
+          this.chatMessages.push(fallbackMessage);
+        }
+      });
+    }
   }
 
   /**

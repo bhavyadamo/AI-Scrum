@@ -271,4 +271,19 @@ export class AzureDevOpsService {
       })
     );
   }
+
+  /**
+   * Get a work item by its ID
+   * @param workItemId The ID of the work item to fetch
+   * @returns Observable with the work item data
+   */
+  getWorkItemById(workItemId: number): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/workitems/${workItemId}`)
+      .pipe(
+        catchError(error => {
+          console.error(`Error fetching work item #${workItemId}:`, error);
+          return of(null);
+        })
+      );
+  }
 } 

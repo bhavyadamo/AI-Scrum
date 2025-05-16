@@ -262,6 +262,70 @@ export class TaskService {
   }
 
   /**
+   * Get developer expertise data from the past 3 months
+   * This retrieves historical data about which developers have worked on similar tasks
+   * @param teamMembers Optional list of team members to filter the results
+   * @returns Observable of developer expertise data
+   */
+  getDeveloperExpertise(teamMembers?: string[]): Observable<any> {
+    // Calculate date from 3 months ago
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    
+    const fromDate = threeMonthsAgo.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+    const toDate = new Date().toISOString().split('T')[0]; // Today
+    
+    let params = new HttpParams()
+      .set('fromDate', fromDate)
+      .set('toDate', toDate);
+    
+    // If team members are specified, include them in the request body instead of params
+    if (teamMembers && teamMembers.length > 0) {
+      return this.http.post<any>(`${this.apiUrl}/developer-expertise`, { 
+        fromDate, 
+        toDate, 
+        teamMembers 
+      }).pipe(
+        tap(response => console.log('Developer expertise response:', response)),
+        catchError(error => {
+          console.error('Error getting developer expertise:', error);
+          return this.handleError(error, 'getting developer expertise');
+        })
+      );
+    }
+    
+    return this.http.get<any>(`${this.apiUrl}/developer-expertise`, { params }).pipe(
+      tap(response => console.log('Developer expertise response:', response)),
+      catchError(error => {
+        console.error('Error getting developer expertise:', error);
+        return this.handleError(error, 'getting developer expertise');
+      })
+    );
+  }
+  
+  /**
+   * Get developers who have recently completed their tasks
+   * @param iterationPath The iteration path to check
+   * @returns Observable of available developer names
+   */
+  getAvailableDevelopers(iterationPath: string): Observable<string[]> {
+    // Normalize the iteration path to handle any double backslashes
+    const normalizedPath = iterationPath.replace(/\\\\/g, '\\');
+    
+    // Ensure the iterationPath is properly encoded
+    const encodedIterationPath = encodeURIComponent(normalizedPath);
+    const params = new HttpParams().set('iterationPath', encodedIterationPath);
+    
+    return this.http.get<string[]>(`${this.apiUrl}/available-developers`, { params }).pipe(
+      tap(response => console.log('Available developers response:', response)),
+      catchError(error => {
+        console.error('Error getting available developers:', error);
+        return this.handleError(error, 'getting available developers');
+      })
+    );
+  }
+
+  /**
    * Generic error handler for HTTP requests
    * @param error The HTTP error response
    * @param operation The operation that was being performed

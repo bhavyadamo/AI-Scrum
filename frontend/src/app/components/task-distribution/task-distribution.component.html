@@ -12,14 +12,17 @@
               <div class="filter-checkbox">
                 <input type="checkbox" class="form-check-input" id="applyTeamFilter" [(ngModel)]="applyTeamFilter"
                   [disabled]="loading.tasks || loading.members">
-                <label class="form-check-label" for="applyTeamFilter">Apply Team Filter</label>
+                <label class="form-check-label" for="applyTeamFilter">
+                  Apply Team Filter
+                  <span *ngIf="applyTeamFilter" class="badge bg-primary ms-1">Active</span>
+                </label>
               </div>
               
               <!-- Team Name Input -->
               <div class="search-input team-input">
-                <input type="text" class="form-control" placeholder="Team Name" [(ngModel)]="teamName" 
+                <input type="text" class="form-control" [ngClass]="{'border-primary': applyTeamFilter}" placeholder="Team Name" [(ngModel)]="teamName" 
                   [disabled]="loading.tasks || loading.members">
-                <small class="text-muted">TeamName</small>
+                <small class="text-muted">TeamName <span *ngIf="applyTeamFilter" class="text-primary">(Filtering enabled)</span></small>
               </div>
               
               <!-- Iteration Path Input -->
@@ -438,21 +441,62 @@
               <ul class="list-unstyled row">
                 <li class="col-md-6 mb-2">
                   <i class="bi bi-trophy text-warning me-2"></i>
-                  <small><strong>Past Expertise</strong> - Completed similar tasks in the past 3 months</small>
+                  <small><strong>Past Expertise</strong> - Developer has completed similar tasks in the past 3 months</small>
                 </li>
                 <li class="col-md-6 mb-2">
                   <i class="bi bi-check-circle text-success me-2"></i>
-                  <small><strong>Recent Completion</strong> - Recently completed tasks with no active work</small>
+                  <small><strong>Recently Completed</strong> - Developer has recently completed all assigned tasks</small>
                 </li>
                 <li class="col-md-6 mb-2">
                   <i class="bi bi-speedometer2 text-info me-2"></i>
-                  <small><strong>Low Workload</strong> - Developer with few active tasks</small>
+                  <small><strong>Workload</strong> - Developer has the lowest number of assigned tasks</small>
                 </li>
                 <li class="col-md-6 mb-2">
-                  <i class="bi bi-person-plus text-primary me-2"></i>
-                  <small><strong>Least Assigned</strong> - Developer with lowest total task count</small>
+                  <i class="bi bi-exclamation-triangle text-secondary me-2"></i>
+                  <small><strong>Default Assignment</strong> - Used when no other criteria matches</small>
+                </li>
+                <li class="col-md-12 mt-2">
+                  <i class="bi bi-filter text-primary me-2"></i>
+                  <small><strong>Team Filter: {{ applyTeamFilter ? 'Active' : 'Inactive' }}</strong> - {{ applyTeamFilter ? 'Only team "' + teamName + '" members are considered for assignment' : 'All team members are considered for assignment' }}</small>
                 </li>
               </ul>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="mt-3 p-3 bg-light rounded">
+              <h6>Assignment Summary:</h6>
+              <div class="row">
+                <div class="col-md-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-trophy text-warning me-2"></i>
+                    <span>{{ getAssignmentsByReason('expertise') }} task(s) by expertise</span>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-check-circle text-success me-2"></i>
+                    <span>{{ getAssignmentsByReason('completed') }} task(s) to recently available developers</span>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-speedometer2 text-info me-2"></i>
+                    <span>{{ getAssignmentsByReason('workload') }} task(s) by workload balance</span>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="d-flex align-items-center mb-2">
+                    <i class="bi bi-exclamation-triangle text-secondary me-2"></i>
+                    <span>{{ getAssignmentsByReason('default') }} task(s) by default assignment</span>
+                  </div>
+                </div>
+              </div>
+              <div *ngIf="applyTeamFilter" class="mt-2 pt-2 border-top">
+                <div class="d-flex align-items-center">
+                  <i class="bi bi-filter text-primary me-2"></i>
+                  <span><strong>{{ getAssignmentsByReason('team') }} task(s)</strong> assigned with team filter "{{ teamName }}" applied</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

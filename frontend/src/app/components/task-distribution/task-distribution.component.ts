@@ -4,6 +4,7 @@ import { TeamService } from '../../services/team.service';
 import { WorkItem, TeamMember } from '../../models/task.model';
 import { forkJoin } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { tap, switchMap } from 'rxjs/operators';
 
 // Declare the global bootstrap variable for TypeScript
 declare global {
@@ -107,6 +108,9 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
 
   ngOnInit(): void {
     this.loadIterationPaths();
+    
+    // Load team filter settings from localStorage
+    this.loadTeamFilterSettings();
   }
 
   /**
@@ -591,14 +595,24 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     this.assignPreviewTasks = [];
     this.assignPreviewSuggestions = {};
     
+    // Load team filter settings before starting the auto-assign process
+    this.loadTeamFilterSettings();
+    
     // Normalize the iteration path to handle any double backslashes
     const normalizedPath = this.currentIterationPath.replace(/\\\\/g, '\\');
     console.log('Using normalized iteration path for auto-assign preview:', normalizedPath);
     
+    // Log team filter settings
+    console.log('Team Filter Settings:', {
+      applyFilter: this.applyTeamFilter,
+      teamName: this.teamName,
+      teamMembers: this.filteredTeamMembers.map(m => m.displayName)
+    });
+    
     // First, get all Dev-New tasks for the current iteration
     this.taskService.getTasks(normalizedPath).subscribe({
       next: (tasks) => {
-        // Enhanced filtering for Dev-New tasks - handle various status formats
+        // Enhanced filtering for Dev-New tasks with broader matching criteria
         const allDevNewTasks = tasks.filter(task => {
           // Skip tasks without status
           if (!task.status) return false;
@@ -608,12 +622,14 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
             .replace(/[\s\-]/g, ''); // Remove spaces and hyphens
           
           // Match against various formats of "Dev-New"
-          return normalizedStatus === 'devnew' || 
+          const isDevNew = normalizedStatus === 'devnew' || 
                  normalizedStatus === 'newdev' ||
                  normalizedStatus.includes('devnew') ||
                  normalizedStatus.includes('newdev') ||
                  normalizedStatus.includes('developmentnew') ||
                  normalizedStatus.includes('newdevelopment');
+                 
+          return isDevNew;
         });
         
         console.log(`Found ${allDevNewTasks.length} Dev-New tasks for auto-assign preview out of ${tasks.length} total tasks`);
@@ -625,55 +641,9 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
           return;
         }
         
-        // If RnD team filter is applied, get team-specific suggestions
-        if (this.applyTeamFilter && this.teamName === 'RND') {
-          // Get RnD team members first
-          this.teamService.getTeamMembersByTeam('RND', normalizedPath).subscribe({
-            next: (teamMembers) => {
-              console.log('Got RnD team members for auto-assign:', teamMembers);
-              
-              // Extract team member names
-              const teamMemberNames = teamMembers.map(member => member.displayName);
-              
-              // Get auto-assign suggestions specifically for RnD team
-              this.taskService.getAutoAssignSuggestionsForTeam(normalizedPath, teamMemberNames).subscribe({
-                next: (suggestions) => {
-                  this.assignPreviewSuggestions = suggestions;
-                  console.log('Got team-specific suggestions:', suggestions);
-                  
-                  // Filter tasks to only include those in the suggestions (tasks to be reassigned)
-                  const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
-                  this.assignPreviewTasks = allDevNewTasks.filter(task => 
-                    suggestedTaskIds.includes(task.id)
-                  );
-                  
-                  console.log('Filtered tasks to be reassigned:', this.assignPreviewTasks);
-                  
-                  // If no matches, try fallback to standard suggestions
-                  if (this.assignPreviewTasks.length === 0 && Object.keys(suggestions).length > 0) {
-                    console.warn('No matching tasks found for team-specific suggestions. Trying standard suggestions.');
-                    this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
-                  } else {
-                    this.loading.preview = false;
-                  }
-                },
-                error: (err) => {
-                  console.error('Error loading team-specific auto-assign suggestions:', err);
-                  // Fall back to standard auto-assign if team-specific fails
-                  this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
-                }
-              });
-            },
-            error: (err) => {
-              console.error('Error loading RnD team members for auto-assign:', err);
-              // Fall back to the standard auto-assign if RnD team member loading fails
-              this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
-            }
-          });
-        } else {
-          // Get standard auto-assign suggestions
-          this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
-        }
+        // Force using our default intelligent assignment logic even if there are no team-specific suggestions
+        // This ensures tasks are always assigned regardless of API response
+        this.getStandardAutoAssignSuggestions(allDevNewTasks, normalizedPath);
       },
       error: (err) => {
         this.error.preview = `Failed to load tasks: ${err.message}`;
@@ -689,80 +659,390 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     console.log('Getting standard auto-assign suggestions with path:', normalizedPath);
     console.log('Dev-New tasks available for assignment:', allDevNewTasks);
     
-    this.taskService.getAutoAssignSuggestions(normalizedPath).subscribe({
-      next: (suggestions) => {
-        this.assignPreviewSuggestions = suggestions;
-        console.log('Got standard suggestions (fallback):', suggestions);
+    // Step 1: Get team members with their current task counts
+    this.loading.taskCounts = true;
+    
+    // Prepare to hold our different data sources
+    let developerExpertise: any = {};
+    let availableDevelopers: string[] = [];
+    let teamMemberTaskCounts: Record<string, number> = {};
+    
+    // First, get strictly filtered team members if team filter is enabled
+    let eligibleTeamMembers: string[] = [];
+    
+    if (this.applyTeamFilter) {
+      // Check if we have team members from settings
+      if (this.filteredTeamMembers.length === 0) {
+        // Try to load from settings
+        const savedSettings = localStorage.getItem('teamFilterSettings');
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          if (settings.selectedMembers && settings.selectedMembers.length > 0) {
+            this.filteredTeamMembers = settings.selectedMembers.map((m: any) => ({
+              id: m.id || '',
+              displayName: m.displayName || '',
+              email: '',
+              isSelected: true
+            }));
+          } else {
+            // If no selected members in settings, fall back to filtering by team name
+            this.filterRnDTeamMembers();
+          }
+        } else {
+          // If no settings at all, fall back to filtering by team name
+          this.filterRnDTeamMembers();
+        }
+      }
+      
+      // Get just the display names of filtered team members
+      eligibleTeamMembers = this.filteredTeamMembers
+        .map(m => m.displayName)
+        .filter(Boolean);
+      
+      console.log(`Strict team filter enforcement: Only these ${eligibleTeamMembers.length} selected team members will be considered:`, eligibleTeamMembers);
+      
+      // If we don't have any eligible team members, show an error
+      if (eligibleTeamMembers.length === 0) {
+        this.error.preview = `No team members found in settings for team "${this.teamName}". Please update team filter settings or disable team filtering.`;
+        this.loading.preview = false;
+        this.loading.taskCounts = false;
+        return;
+      }
+    }
+    
+    // First, get the team members with their task counts
+    this.taskService.getTeamMemberTaskCounts(normalizedPath).pipe(
+      tap(taskCounts => {
+        // First store all task counts
+        teamMemberTaskCounts = taskCounts;
+        console.log('All team member task counts:', teamMemberTaskCounts);
         
-        // Check if we have any suggestions
-        if (Object.keys(suggestions).length === 0) {
-          console.warn('No suggestions returned from the API');
-          this.error.preview = 'No task assignment suggestions were generated. There may be no available tasks to assign.';
-          this.loading.preview = false;
-          return;
+        // If team filter is active, filter the task counts to only include eligible members
+        if (this.applyTeamFilter && eligibleTeamMembers.length > 0) {
+          const filteredCounts: Record<string, number> = {};
+          const eligibleMembersLower = eligibleTeamMembers.map(m => m.toLowerCase());
+          
+          // Filter to only include counts for eligible team members
+          Object.keys(teamMemberTaskCounts).forEach(member => {
+            if (eligibleMembersLower.includes(member.toLowerCase())) {
+              filteredCounts[member] = teamMemberTaskCounts[member];
+            }
+          });
+          
+          // Replace the original counts with filtered counts
+          teamMemberTaskCounts = filteredCounts;
+          console.log(`Filtered task counts to ${Object.keys(teamMemberTaskCounts).length} RND members:`, teamMemberTaskCounts);
+        }
+      }),
+      // Then get developer expertise data from past 3 months
+      switchMap(() => {
+        // Get list of members from task counts (already filtered if team filter is active)
+        let teamMembers = Object.keys(teamMemberTaskCounts);
+        return this.taskService.getDeveloperExpertise(teamMembers);
+      }),
+      // Then get developers who have recently completed tasks
+      switchMap(expertise => {
+        developerExpertise = expertise;
+        console.log('Developer expertise:', developerExpertise);
+        return this.taskService.getAvailableDevelopers(normalizedPath);
+      })
+    ).subscribe({
+      next: (available) => {
+        availableDevelopers = available;
+        console.log('Available developers (all):', availableDevelopers);
+        
+        // Filter available developers by team if needed
+        if (this.applyTeamFilter && eligibleTeamMembers.length > 0) {
+          const eligibleMembersLower = eligibleTeamMembers.map(m => m.toLowerCase());
+          availableDevelopers = availableDevelopers.filter(dev => 
+            eligibleMembersLower.includes(dev.toLowerCase())
+          );
+          console.log(`Filtered available developers to ${availableDevelopers.length} RND members:`, availableDevelopers);
         }
         
-        // Filter tasks to only include those in the suggestions (tasks to be reassigned)
-        const suggestedTaskIds = Object.keys(suggestions).map(id => parseInt(id));
-        console.log('Suggestion task IDs:', suggestedTaskIds);
+        // Get the final list of eligible members to assign tasks to
+        let eligibleMembers = Object.keys(teamMemberTaskCounts);
+        console.log(`${eligibleMembers.length} members eligible for task assignment:`, eligibleMembers);
         
-        // Try more flexible matching if necessary
-        if (suggestedTaskIds.length > 0 && allDevNewTasks.length > 0) {
-          console.log('Applying task to suggestion matching...');
-          console.log('Task IDs available:', allDevNewTasks.map(t => t.id));
+        // Create the assignment suggestions
+        this.assignPreviewSuggestions = {};
+        
+        // FIRST PASS: Try to evenly distribute tasks to members with fewest tasks
+        
+        // Create a prioritized list of members by task count (ascending)
+        const membersByTaskCount = [...eligibleMembers].sort((a, b) => 
+          (teamMemberTaskCounts[a] || 0) - (teamMemberTaskCounts[b] || 0)
+        );
+        
+        console.log('Members sorted by task count (ascending):', 
+          membersByTaskCount.map(m => `${m}: ${teamMemberTaskCounts[m] || 0} tasks`));
+        
+        // Map to keep track of assignments made in this run
+        const assignmentsThisRun: Record<string, number> = {};
+        membersByTaskCount.forEach(m => assignmentsThisRun[m] = 0);
+        
+        // For each task, find the best developer to assign it to
+        allDevNewTasks.forEach(task => {
+          let assignedDeveloper = '';
+          let assignmentReason = '';
           
+          // PRIORITY 1: Try to find an expertise match among members with lowest task count
+          if (developerExpertise && developerExpertise.taskTypeExpertise) {
+            const taskType = task.type || 'Unknown';
+            const allExperts = developerExpertise.taskTypeExpertise[taskType] || [];
+            
+            // Filter to only include eligible team members
+            const experts = allExperts.filter((expert: string) => 
+              eligibleMembers.some(member => member.toLowerCase() === expert.toLowerCase())
+            );
+            
+            if (experts.length > 0) {
+              // Get the experts with the lowest current workload
+              // Calculate total workload (existing + new assignments)
+              const expertsByWorkload = [...experts].sort((a, b) => {
+                const aTotal = (teamMemberTaskCounts[a] || 0) + (assignmentsThisRun[a] || 0);
+                const bTotal = (teamMemberTaskCounts[b] || 0) + (assignmentsThisRun[b] || 0);
+                return aTotal - bTotal;
+              });
+              
+              assignedDeveloper = expertsByWorkload[0];
+              assignmentReason = `past expertise in ${taskType} tasks`;
+              console.log(`Task ${task.id}: Assigned to ${assignedDeveloper} based on expertise (has ${teamMemberTaskCounts[assignedDeveloper]} existing + ${assignmentsThisRun[assignedDeveloper]} new tasks)`);
+            }
+          }
+          
+          // PRIORITY 2: If no expertise match, try to assign to developers who have completed tasks
+          if (!assignedDeveloper && availableDevelopers.length > 0) {
+            // Sort by total workload (existing + new assignments)
+            const availableByWorkload = [...availableDevelopers].sort((a, b) => {
+              const aTotal = (teamMemberTaskCounts[a] || 0) + (assignmentsThisRun[a] || 0);
+              const bTotal = (teamMemberTaskCounts[b] || 0) + (assignmentsThisRun[b] || 0);
+              return aTotal - bTotal;
+            });
+            
+            assignedDeveloper = availableByWorkload[0];
+            assignmentReason = 'recently completed other tasks';
+            console.log(`Task ${task.id}: Assigned to ${assignedDeveloper} based on recent completion (has ${teamMemberTaskCounts[assignedDeveloper]} existing + ${assignmentsThisRun[assignedDeveloper]} new tasks)`);
+          }
+          
+          // PRIORITY 3: If still no assignment, use the team member with the lowest current task count
+          if (!assignedDeveloper && eligibleMembers.length > 0) {
+            // Sort by total workload (existing + new assignments)
+            const membersByWorkload = [...eligibleMembers].sort((a, b) => {
+              const aTotal = (teamMemberTaskCounts[a] || 0) + (assignmentsThisRun[a] || 0);
+              const bTotal = (teamMemberTaskCounts[b] || 0) + (assignmentsThisRun[b] || 0);
+              return aTotal - bTotal;
+            });
+            
+            assignedDeveloper = membersByWorkload[0];
+            assignmentReason = 'lowest current workload';
+            console.log(`Task ${task.id}: Assigned to ${assignedDeveloper} based on lowest workload (has ${teamMemberTaskCounts[assignedDeveloper]} existing + ${assignmentsThisRun[assignedDeveloper]} new tasks)`);
+          }
+          
+          // Final fallback: If all else fails, just assign to any eligible team member
+          if (!assignedDeveloper && eligibleMembers.length > 0) {
+            assignedDeveloper = eligibleMembers[0];
+            assignmentReason = 'default assignment (fallback)';
+            console.log(`Task ${task.id}: Default fallback to ${assignedDeveloper}`);
+          }
+          
+          // Store the suggestion with the reason
+          if (assignedDeveloper) {
+            this.assignPreviewSuggestions[task.id] = `${assignedDeveloper} (${assignmentReason})`;
+            // Update assignments this run to maintain balanced distribution
+            assignmentsThisRun[assignedDeveloper] = (assignmentsThisRun[assignedDeveloper] || 0) + 1;
+          }
+        });
+        
+        // Filter tasks to only include those we have suggestions for
+        this.assignPreviewTasks = allDevNewTasks.filter(task => 
+          this.assignPreviewSuggestions[task.id]
+        );
+        
+        console.log('Final assignment distribution:', assignmentsThisRun);
+        console.log('Auto-assign suggestions:', this.assignPreviewSuggestions);
+        console.log('Tasks to be assigned:', this.assignPreviewTasks);
+        
+        // Check if we have valid suggestions
+        if (this.assignPreviewTasks.length === 0) {
+          this.error.preview = 'No suitable tasks found for assignment. Check if there are unassigned Dev-New tasks.';
+        }
+        
+        this.loading.preview = false;
+        this.loading.taskCounts = false;
+      },
+      error: (err) => {
+        console.error('Error loading data for intelligent assignment:', err);
+        
+        // Fallback to basic assignment if data loading fails
+        this.fallbackToBasicAssignment(allDevNewTasks);
+      }
+    });
+  }
+  
+  /**
+   * Basic fallback assignment method if intelligent assignment fails
+   */
+  private fallbackToBasicAssignment(allDevNewTasks: WorkItem[]): void {
+    console.log('Falling back to basic assignment logic');
+    
+    // Always ensure we have tasks to assign
+    if (allDevNewTasks.length === 0) {
+      this.error.preview = 'No Dev-New tasks found for assignment.';
+      this.loading.preview = false;
+      return;
+    }
+    
+    // Get the list of RND team members if filter is active
+    let eligibleTeamMembers: string[] = [];
+    
+    if (this.applyTeamFilter) {
+      // Ensure we have the filtered team members
+      if (this.filteredTeamMembers.length === 0) {
+        this.filterRnDTeamMembers();
+      }
+      
+      // Get just the display names of RND team members
+      eligibleTeamMembers = this.filteredTeamMembers
+        .map(m => m.displayName)
+        .filter(Boolean);
+      
+      console.log(`Fallback with team filter: Only these ${eligibleTeamMembers.length} RND members will be considered:`, eligibleTeamMembers);
+      
+      // If we don't have any eligible team members, show an error
+      if (eligibleTeamMembers.length === 0) {
+        this.error.preview = `No team members found for team "${this.teamName}". Please add team members or disable team filtering.`;
+        this.loading.preview = false;
+        return;
+      }
+    }
+    
+    this.taskService.getAutoAssignSuggestions(this.currentIterationPath).subscribe({
+      next: (suggestions) => {
+        console.log('Got standard suggestions (basic fallback):', suggestions);
+        
+        // Check if we have any suggestions from the API
+        if (Object.keys(suggestions).length > 0) {
+          // If team filter is active, filter suggestions to only include RND team members
+          if (this.applyTeamFilter && eligibleTeamMembers.length > 0) {
+            const eligibleMembersLower = eligibleTeamMembers.map(m => m.toLowerCase());
+            const filteredSuggestions: Record<string, string> = {};
+            
+            // Only keep suggestions for eligible team members
+            Object.entries(suggestions).forEach(([taskId, suggestion]) => {
+              const developerName = this.extractDeveloperName(suggestion).toLowerCase();
+              if (eligibleMembersLower.includes(developerName)) {
+                filteredSuggestions[taskId] = suggestion;
+              } else {
+                console.log(`Removed suggestion for task ${taskId}: ${suggestion} - not an RND team member`);
+              }
+            });
+            
+            this.assignPreviewSuggestions = filteredSuggestions;
+            console.log(`Filtered suggestions to only include RND members: ${Object.keys(filteredSuggestions).length} remaining`);
+          } else {
+            // Use all suggestions if no team filter
+            this.assignPreviewSuggestions = suggestions;
+          }
+          
+          // Filter tasks to only include those in the suggestions
+          const suggestedTaskIds = Object.keys(this.assignPreviewSuggestions).map(id => parseInt(id));
           this.assignPreviewTasks = allDevNewTasks.filter(task => 
             suggestedTaskIds.includes(task.id)
           );
+        }
+        
+        // If we still don't have tasks to assign, use ALL Dev-New tasks with a simple balanced distribution
+        if (this.assignPreviewTasks.length === 0) {
+          console.log('No task suggestions matched. Using all Dev-New tasks for assignment.');
+          // Include all Dev-New tasks, prioritizing unassigned ones
+          this.assignPreviewTasks = [...allDevNewTasks];
           
-          // If no matches found, try string matching
-          if (this.assignPreviewTasks.length === 0) {
-            console.warn('No direct ID matches found, trying string matching');
-            this.assignPreviewTasks = allDevNewTasks.filter(task => 
-              suggestedTaskIds.includes(Number(task.id))
+          // Create simple suggestions for all tasks
+          if (this.assignPreviewTasks.length > 0) {
+            this.assignPreviewSuggestions = {};
+            
+            // Get available team members based on team filter setting
+            let availableMembers: string[] = [];
+            
+            if (this.applyTeamFilter && eligibleTeamMembers.length > 0) {
+              // Use strictly filtered team members if filter is applied
+              availableMembers = [...eligibleTeamMembers];
+              console.log(`Using ${availableMembers.length} filtered RND team members for fallback assignment`);
+            } else if (this.teamMembers.length > 0) {
+              // Otherwise use all team members
+              availableMembers = this.teamMembers
+                .filter(m => typeof m === 'object')
+                .map(m => m.displayName)
+                .filter(Boolean);
+              console.log(`Using ${availableMembers.length} team members for fallback assignment`);
+            }
+            
+            // Fallback if still no members
+            if (availableMembers.length === 0) {
+              this.error.preview = 'No team members available for assignment.';
+              this.loading.preview = false;
+              return;
+            }
+            
+            // Get task counts for each member to ensure even distribution
+            const memberTaskCounts: Record<string, number> = {};
+            availableMembers.forEach(member => {
+              memberTaskCounts[member] = 0;
+            });
+            
+            // Count current tasks
+            this.tasks.forEach(task => {
+              const assignee = task.assignedTo;
+              if (assignee && memberTaskCounts[assignee] !== undefined) {
+                memberTaskCounts[assignee]++;
+              }
+            });
+            
+            // Sort members by task count (ascending)
+            const sortedMembers = [...availableMembers].sort((a, b) => 
+              (memberTaskCounts[a] || 0) - (memberTaskCounts[b] || 0)
             );
             
-            // If still no matches, try more flexible matching
-            if (this.assignPreviewTasks.length === 0) {
-              console.warn('No matches found even with string conversion, using available Dev-New tasks');
-              // Just use the first few Dev-New tasks that aren't assigned
-              this.assignPreviewTasks = allDevNewTasks
-                .filter(task => !task.assignedTo || task.assignedTo.trim() === '')
-                .slice(0, Math.min(5, allDevNewTasks.length));
+            console.log('Members sorted by task count for round-robin assignment:', 
+              sortedMembers.map(m => `${m}: ${memberTaskCounts[m] || 0} tasks`));
+            
+            // Track new assignments to maintain balance
+            const newAssignments: Record<string, number> = {};
+            sortedMembers.forEach(m => newAssignments[m] = 0);
+            
+            // Round-robin assignment to team members, starting with those with fewest tasks
+            this.assignPreviewTasks.forEach((task, index) => {
+              // Find the member with the lowest total workload (existing + new)
+              const membersByTotalLoad = [...sortedMembers].sort((a, b) => {
+                const aTotal = (memberTaskCounts[a] || 0) + (newAssignments[a] || 0);
+                const bTotal = (memberTaskCounts[b] || 0) + (newAssignments[b] || 0);
+                return aTotal - bTotal;
+              });
               
-              // Create suggestions for them
-              if (this.assignPreviewTasks.length > 0) {
-                console.log('Using', this.assignPreviewTasks.length, 'unassigned Dev-New tasks as fallback');
-                // Create empty suggestions object
-                this.assignPreviewSuggestions = {};
-                
-                // Get team members to suggest
-                const availableMembers = this.filteredTeamMembers
-                  .sort((a, b) => (a.currentWorkload || 0) - (b.currentWorkload || 0))
-                  .map(m => m.displayName)
-                  .filter(Boolean);
-                
-                // Assign members to tasks
-                this.assignPreviewTasks.forEach((task, index) => {
-                  const memberIndex = index % availableMembers.length;
-                  const member = availableMembers[memberIndex];
-                  this.assignPreviewSuggestions[task.id] = `${member} (least assigned)`;
-                });
-              }
-            }
+              const assignee = membersByTotalLoad[0];
+              this.assignPreviewSuggestions[task.id] = `${assignee} (balanced workload distribution)`;
+              
+              // Update the member's task count for subsequent assignments
+              newAssignments[assignee] = (newAssignments[assignee] || 0) + 1;
+              
+              console.log(`Task ${task.id}: Assigned to ${assignee} (has ${memberTaskCounts[assignee]} existing + ${newAssignments[assignee]} new tasks)`);
+            });
+            
+            console.log('Final assignment distribution:', newAssignments);
           }
         }
         
-        console.log('Filtered tasks to be reassigned (fallback):', this.assignPreviewTasks);
-        
-        if (this.assignPreviewTasks.length === 0) {
-          this.error.preview = 'No tasks available for assignment. Check if there are Dev-New tasks in the current iteration.';
+        // Check if we have valid suggestions
+        if (Object.keys(this.assignPreviewSuggestions).length === 0) {
+          this.error.preview = 'Could not generate assignment suggestions.';
         }
         
         this.loading.preview = false;
       },
       error: (err) => {
-        this.error.preview = `Failed to load auto-assign suggestions: ${err.message}`;
+        console.error('Error getting auto-assign suggestions:', err);
+        this.error.preview = `Failed to get assignment suggestions: ${err.message}`;
         this.loading.preview = false;
       }
     });
@@ -842,42 +1122,69 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
   }
   
   /**
-   * Extract just the developer name from the suggestion string
-   * Format is typically "Name (explanation)"
+   * Extract only the developer name from a suggestion string
+   * Example: "John Doe (past expertise)" -> "John Doe"
    */
   extractDeveloperName(suggestion: string): string {
     if (!suggestion) return '';
     
-    // Handle new format: "Developer Name (expert in Bug, low load)"
-    if (suggestion.includes('(')) {
-      return suggestion.substring(0, suggestion.indexOf('(')).trim();
-    } 
+    // Match everything before the opening parenthesis
+    const match = suggestion.match(/^(.+?)\s*\(/);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
     
-    // Fallback for simpler formats
-    const parts = suggestion.split(' ');
-    return parts[0]; // Just return the first word as the name
+    // If no parenthesis found, return the whole string
+    return suggestion.trim();
   }
   
   /**
-   * Extract the logic explanation from the suggestion string
-   * Format is typically "Name (explanation)"
+   * Extract just the explanation part from a suggestion string
+   * Example: "John Doe (past expertise in Bug tasks)" -> "past expertise in Bug tasks"
    */
   extractLogicExplanation(suggestion: string): string {
     if (!suggestion) return '';
     
-    // Match content inside parentheses
-    const match = suggestion.match(/\((.*?)\)/);
+    // Match everything between parentheses
+    const match = suggestion.match(/\(([^)]+)\)/);
     if (match && match[1]) {
-      return match[1];
-    }
-    
-    // If no parentheses, return the part after the first space
-    const spaceIndex = suggestion.indexOf(' ');
-    if (spaceIndex !== -1) {
-      return suggestion.substring(spaceIndex + 1).trim();
+      return match[1].trim();
     }
     
     return '';
+  }
+  
+  /**
+   * Count assignments by specific reason keyword
+   * @param reasonType The type of reason to count ('expertise', 'completed', 'workload', 'default', or 'team')
+   * @returns The number of assignments made with that reason
+   */
+  getAssignmentsByReason(reasonType: string): number {
+    if (!this.assignPreviewSuggestions) return 0;
+    
+    const suggestions = Object.values(this.assignPreviewSuggestions);
+    
+    // Map reason types to keywords that might appear in the explanation
+    const reasonKeywords: Record<string, string[]> = {
+      'expertise': ['expertise', 'expert'],
+      'completed': ['completed', 'recently completed'],
+      'workload': ['workload', 'least assigned', 'lowest'],
+      'default': ['default assignment', 'could not determine', 'basic fallback', 'workload-based distribution'],
+      'team': ['team filter', this.teamName]
+    };
+    
+    // For team filter, just return how many assignments are made when team filter is on
+    if (reasonType === 'team' && this.applyTeamFilter) {
+      return suggestions.length;
+    }
+    
+    // Count occurrences of keywords for the specified reason
+    return suggestions.filter(suggestion => {
+      const lowerSuggestion = suggestion.toLowerCase();
+      return reasonKeywords[reasonType].some(keyword => 
+        lowerSuggestion.includes(keyword.toLowerCase())
+      );
+    }).length;
   }
 
   /**
@@ -1217,14 +1524,20 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    * @returns List of Dev-New tasks
    */
   getDevNewTasks(): WorkItem[] {
-    return this.filteredTasks.filter(task => 
-      task.status && 
-      (task.status.toLowerCase() === 'dev-new' ||
-       task.status.toLowerCase() === 'dev new' ||
-       task.status.toLowerCase().includes('dev-new') ||
-       task.status.toLowerCase().includes('dev new') ||
-       task.status.toLowerCase() === 'development - new')
-    );
+    return this.filteredTasks.filter(task => {
+      if (!task.status) return false;
+      
+      // Normalize status by removing spaces, hyphens, and converting to lowercase
+      const normalizedStatus = task.status.toLowerCase().replace(/[\s\-]/g, '');
+      
+      // Use the same broad matching criteria as in showAutoAssignPreview
+      return normalizedStatus === 'devnew' || 
+             normalizedStatus === 'newdev' ||
+             normalizedStatus.includes('devnew') ||
+             normalizedStatus.includes('newdev') ||
+             normalizedStatus.includes('developmentnew') ||
+             normalizedStatus.includes('newdevelopment');
+    });
   }
 
   /**
@@ -1232,15 +1545,8 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
    * @returns List of unassigned Dev-New tasks
    */
   getUnassignedDevNewTasks(): WorkItem[] {
-    return this.filteredTasks.filter(task => 
-      task.status && 
-      (task.status.toLowerCase() === 'dev-new' ||
-       task.status.toLowerCase() === 'dev new' ||
-       task.status.toLowerCase().includes('dev-new') ||
-       task.status.toLowerCase().includes('dev new') ||
-       task.status.toLowerCase() === 'development - new') && 
-      !task.assignedTo
-    );
+    // Use our improved getDevNewTasks method and filter for unassigned
+    return this.getDevNewTasks().filter(task => !task.assignedTo);
   }
   
   /**
@@ -1500,6 +1806,36 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
         event.preventDefault();
         firstElement.focus();
       }
+    }
+  }
+
+  // Load team filter settings from localStorage
+  loadTeamFilterSettings(): void {
+    const savedSettings = localStorage.getItem('teamFilterSettings');
+    
+    if (savedSettings) {
+      const settings = JSON.parse(savedSettings);
+      this.applyTeamFilter = settings.enableTeamFilter ?? true;
+      this.teamName = settings.teamName ?? 'RND';
+      
+      // Set the current iteration path from settings if available
+      if (settings.defaultIterationPath) {
+        this.currentIterationPath = settings.defaultIterationPath;
+      }
+      
+      // Store selected team members for filtering
+      this.filteredTeamMembers = settings.selectedMembers?.map((m: any) => ({
+        id: m.id || '',
+        displayName: m.displayName || '',
+        email: '',
+        isSelected: true
+      })) || [];
+      
+      console.log('Loaded team filter settings:', {
+        applyTeamFilter: this.applyTeamFilter,
+        teamName: this.teamName,
+        filteredTeamMembers: this.filteredTeamMembers
+      });
     }
   }
 }
