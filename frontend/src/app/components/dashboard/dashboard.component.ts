@@ -786,20 +786,186 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     const message = this.currentMessage;
     this.currentMessage = '';
     
+    // Special case for "number of status" queries - handle these first
+    if (message.toLowerCase().startsWith('number of ') || message.toLowerCase().startsWith('no of ')) {
+      // Handle the special case directly
+      this.handleStatusCountQueryDirect(message);
+      return;
+    }
+    
     // Check if this is a task assignment request
     // Match patterns like: "assign task #123 to john", "set task 123 for john doe", etc.
     const assignTaskRegex = /(?:assign|set|give)\s+(?:task|item|work item)?(?:\s+#)?(\d+)\s+(?:to|for)\s+([a-zA-Z][a-zA-Z\s\.]+)/i;
     const assignTaskMatch = message.match(assignTaskRegex);
+    
+    // Check for shorthand task assignment: "#48044 assign to Bhavya"
+    const shorthandAssignRegex = /#?(\d+)\s+(?:assign(?:ed)?|set|give)\s+(?:to|for)\s+([a-zA-Z][a-zA-Z\s\.]+)/i;
+    const shorthandAssignMatch = assignTaskMatch ? null : message.match(shorthandAssignRegex);
     
     // Check if this is a task lookup request
     // Match patterns like: "show task #123", "find task 123", "what is task 123", etc.
     const lookupTaskRegex = /(?:show|find|what is|get|lookup|look up|display|view)\s+(?:task|item|work item)(?:\s+#)?(\d+)/i;
     const lookupTaskMatch = message.match(lookupTaskRegex);
     
+    // Pattern for "who has the most tasks"
+    const mostTasksRegex = /who has (?:the )?most (?:tasks|work items|items|work)/i;
+    const mostTasksMatch = message.match(mostTasksRegex);
+    
+    // Pattern for task distribution
+    const taskDistributionRegex = /(?:task|work|workload|work item) distribution/i;
+    const taskDistributionMatch = message.match(taskDistributionRegex);
+    
+    // Pattern for sprint status/summary
+    const sprintStatusRegex = /(?:sprint|iteration) (?:status|summary|overview|details|progress)/i;
+    const sprintStatusMatch = message.match(sprintStatusRegex);
+    
+    // Pattern for dashboard queries
+    const dashboardRegex = /(?:show|get|display|view|what(?:'|i)s|how(?:'|i)s)\s+(?:the\s+)?dashboard|dashboard\s+(?:overview|status|summary|info|details)/i;
+    const dashboardMatch = message.match(dashboardRegex);
+    
+    // Pattern for task status distribution queries
+    const taskStatusRegex = /(?:task|work item)s?\s+(?:by|in|with)\s+status|status\s+(?:breakdown|distribution)|(?:distribution|breakdown)\s+(?:of|by)\s+status/i;
+    const taskStatusMatch = message.match(taskStatusRegex);
+    
+    // Pattern for work item type queries
+    const workItemTypeRegex = /(?:work item|task)s?\s+(?:by|per|across)\s+type|type\s+(?:breakdown|distribution)|(?:distribution|breakdown)\s+(?:of|by)\s+type/i;
+    const workItemTypeMatch = message.match(workItemTypeRegex);
+    
+    // Pattern for tasks with specific status in specific iteration
+    const specificTasksRegex = /(?:show|get|find|display|list|what(?:'|i)s)?\s*(?:the\s+)?(\w+(?:[-\s]\w+)*)\s+(?:tasks|work items|items)\s+(?:under|in|for|within)\s+(.+?)(?:\s*\?|$)/i;
+    const specificTasksMatch = message.match(specificTasksRegex);
+    
+    // Direct pattern for "Active tasks under Techoil\2.3.23" and similar
+    const directTaskPathPattern = /^(\w+)\s+tasks\s+under\s+(.+)$/i;
+    const directMatch = !specificTasksMatch ? message.match(directTaskPathPattern) : null;
+    
+    // Pattern for questions about specific task status count
+    const statusCountRegex = /(?:how many|what is the count of|count of|number of)\s+(\w+(?:[-\s]\w+)*)\s+(?:tasks|work items|items)/i;
+    const statusCountMatch = message.match(statusCountRegex);
+    
+    // Pattern for "no of [status]" queries
+    const noOfStatusRegex = /^(?:no|number) of\s+(.+?)(?:\s+tasks|\s+work items|\s+items)?(?:\s+in|\s+under|\s+within|\s+for)?\s*(.*?)?\s*$/i;
+    const noOfStatusMatch = message.match(noOfStatusRegex);
+    
+    // Simple pattern for just a status name question
+    const simpleStatusRegex = /^(active|code review|cs-new|dev in progress|dev-new|planned|proposed|require clarification|resolved|verified)$/i;
+    const simpleStatusMatch = message.match(simpleStatusRegex);
+    
+    // Pattern for status card questions
+    const statusCardRegex = /(?:status cards|task cards|dashboard cards|status distribution cards|task status distribution)/i;
+    const statusCardMatch = message.match(statusCardRegex);
+    
+    // Handle queries like "number of CS-New tasks under Techoil\2.3.23"
+    const handleStatusCountQuery = (query: string): boolean => {
+      // Check if query matches the pattern
+      const match = query.match(noOfStatusRegex);
+      if (!match) return false;
+      
+      // Extract the status and iteration path
+      let statusText = match[1].trim();
+      const iteration = match[2]?.trim() || this.selectedIterationPath;
+      
+      // Special handling for known statuses
+      let actualStatus = statusText;
+      if (statusText.toLowerCase() === 'cs-new' || statusText.toLowerCase() === 'cs new') {
+        actualStatus = 'CS-New';
+      } else if (statusText.toLowerCase() === 'dev-new' || statusText.toLowerCase() === 'dev new') {
+        actualStatus = 'Dev-New';
+      } else if (statusText.toLowerCase() === 'dev in progress') {
+        actualStatus = 'Dev In progress';
+      } else if (statusText.toLowerCase() === 'code review') {
+        actualStatus = 'Code Review';
+      }
+      
+      // Show loading message
+      this.chatMessages.push({
+        role: 'assistant',
+        content: `Retrieving the count of ${actualStatus} tasks in ${iteration}...`,
+        timestamp: new Date()
+      });
+      
+      // Get task count for this status
+      this.dashboardService.getTasksByStatusInIteration(actualStatus, iteration)
+        .subscribe({
+          next: (tasks: any[]) => {
+            this.chatMessages.pop();
+            
+            if (tasks && tasks.length > 0) {
+              const count = tasks.length;
+              let formattedResponse = `<p>Found ${count} ${actualStatus} tasks in iteration "${iteration}".</p>`;
+              
+              this.chatMessages.push({
+                role: 'assistant',
+                content: formattedResponse,
+                timestamp: new Date()
+              });
+            } else {
+              this.chatMessages.push({
+                role: 'assistant', 
+                content: `No tasks found with status "${actualStatus}" in iteration "${iteration}".`,
+                timestamp: new Date()
+              });
+            }
+          },
+          error: (err: any) => {
+            this.chatMessages.pop();
+            console.error('Error retrieving task count:', err);
+            this.chatMessages.push({
+              role: 'assistant',
+              content: 'Sorry, I encountered an error retrieving the task count. Please try again later.',
+              timestamp: new Date()
+            });
+          }
+        });
+      
+      return true;
+    };
+    
     if (assignTaskMatch) {
       // This is a task assignment command
       const taskId = parseInt(assignTaskMatch[1]);
       const assignee = assignTaskMatch[2].trim();
+      
+      // Show thinking message
+      this.chatMessages.push({
+        role: 'assistant',
+        content: `Assigning task #${taskId} to ${assignee}...`,
+        timestamp: new Date()
+      });
+      
+      // Process the assignment
+      this.dashboardService.processAiTaskAssignment(taskId, assignee).subscribe({
+        next: (response) => {
+          // Remove the thinking message
+          this.chatMessages.pop();
+          
+          // Add success message
+          this.chatMessages.push({
+            role: 'assistant',
+            content: `✅ Task #${taskId} has been successfully assigned to ${assignee}. The changes will be reflected in Azure DevOps.`,
+            timestamp: new Date()
+          });
+          
+          // Refresh task data to reflect the changes
+          this.loadTaskStatusBoard();
+        },
+        error: (err) => {
+          // Remove the thinking message
+          this.chatMessages.pop();
+          
+          console.error('Error assigning task:', err);
+          // Add error message
+          this.chatMessages.push({
+            role: 'assistant',
+            content: `❌ Sorry, I couldn't assign task #${taskId} to ${assignee}. ${err.error?.message || 'Please check if the task ID and assignee name are correct.'}`,
+            timestamp: new Date()
+          });
+        }
+      });
+    } else if (shorthandAssignMatch) {
+      // This is a shorthand task assignment command
+      const taskId = parseInt(shorthandAssignMatch[1]);
+      const assignee = shorthandAssignMatch[2].trim();
       
       // Show thinking message
       this.chatMessages.push({
@@ -904,6 +1070,494 @@ export class DashboardComponent implements OnInit, AfterViewInit {
           });
         }
       });
+    } else if (mostTasksMatch) {
+      // Handle "who has the most tasks" query locally
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Analyzing task distribution...',
+        timestamp: new Date()
+      });
+      
+      const assigneeDistribution = this.getAssigneeDistribution();
+      if (assigneeDistribution && assigneeDistribution.length > 0) {
+        // Find member with the most tasks
+        const mostTasksMember = assigneeDistribution[0]; // Already sorted by task count in getAssigneeDistribution()
+        
+        // Remove the thinking message
+        this.chatMessages.pop();
+        
+        // Create formatted response with task distribution
+        let formattedResponse = `<p><strong>${mostTasksMember.name}</strong> has the most assigned tasks (${mostTasksMember.count}).</p>`;
+        
+        // Add a small table showing distribution
+        formattedResponse += `
+          <div class="mt-2 small">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Team Member</th>
+                  <th>Task Count</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        // Add rows for top 5 members
+        assigneeDistribution.slice(0, 5).forEach(member => {
+          formattedResponse += `
+            <tr>
+              <td>${member.name}</td>
+              <td>${member.count}</td>
+            </tr>
+          `;
+        });
+        
+        formattedResponse += `
+              </tbody>
+            </table>
+          </div>
+        `;
+        
+        this.chatMessages.push({
+          role: 'assistant',
+          content: formattedResponse,
+          timestamp: new Date()
+        });
+      } else {
+        // No assignee data available
+        this.chatMessages.pop();
+        this.chatMessages.push({
+          role: 'assistant',
+          content: 'I couldn\'t determine who has the most tasks. There may be no tasks assigned yet.',
+          timestamp: new Date()
+        });
+      }
+    } else if (taskDistributionMatch) {
+      // Handle task distribution query locally
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Analyzing task distribution...',
+        timestamp: new Date()
+      });
+      
+      if (this.tasksByStatus && this.tasksByStatus.length > 0) {
+        // Remove the thinking message
+        this.chatMessages.pop();
+        
+        // Create formatted response with task distribution
+        let formattedResponse = `<p>Current task distribution in ${this.decodeIterationPath(this.selectedIterationPath)}:</p>`;
+        
+        // Add a small table showing distribution
+        formattedResponse += `
+          <div class="mt-2">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        // Add rows for all statuses
+        this.tasksByStatus.forEach(status => {
+          const statusClass = this.getStatusColor(status.status);
+          formattedResponse += `
+            <tr>
+              <td><span class="badge" style="background-color: ${statusClass};">${status.status}</span></td>
+              <td>${status.count}</td>
+            </tr>
+          `;
+        });
+        
+        formattedResponse += `
+              </tbody>
+            </table>
+          </div>
+        `;
+        
+        this.chatMessages.push({
+          role: 'assistant',
+          content: formattedResponse,
+          timestamp: new Date()
+        });
+      } else {
+        // No status data available
+        this.chatMessages.pop();
+        this.chatMessages.push({
+          role: 'assistant',
+          content: 'I couldn\'t retrieve the task distribution information. Please try again later.',
+          timestamp: new Date()
+        });
+      }
+    } else if (sprintStatusMatch) {
+      // Handle sprint status query locally
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Retrieving sprint information...',
+        timestamp: new Date()
+      });
+      
+      if (this.sprintSummary) {
+        // Remove the thinking message
+        this.chatMessages.pop();
+        
+        const completionPercentage = this.calculateCompletionPercentage();
+        
+        // Create formatted response with sprint information
+        let formattedResponse = `
+          <div class="sprint-summary p-2 border rounded">
+            <h5>${this.decodeIterationPath(this.selectedIterationPath)}</h5>
+            <div class="row">
+              <div class="col-md-6">
+                <ul class="list-unstyled mb-0">
+                  <li><strong>Total Tasks:</strong> ${this.sprintSummary.totalTasks}</li>
+                  <li><strong>Completed Tasks:</strong> ${this.sprintSummary.completed}</li>
+                  <li><strong>In Progress:</strong> ${this.sprintSummary.inProgress}</li>
+                  <li><strong>Completion:</strong> ${this.sprintSummary.completionPercentage.toFixed(1)}%</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <div class="progress mb-2" style="height: 20px;">
+                  <div class="progress-bar" role="progressbar" 
+                       style="width: ${completionPercentage}%;" 
+                       aria-valuenow="${completionPercentage}" 
+                       aria-valuemin="0" 
+                       aria-valuemax="100">
+                    ${completionPercentage}%
+                  </div>
+                </div>
+                <p class="small text-muted text-center">Sprint Progress</p>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        this.chatMessages.push({
+          role: 'assistant',
+          content: formattedResponse,
+          timestamp: new Date()
+        });
+      } else {
+        // No sprint data available
+        this.chatMessages.pop();
+        this.chatMessages.push({
+          role: 'assistant',
+          content: 'I couldn\'t retrieve the sprint information. Please try again later.',
+          timestamp: new Date()
+        });
+      }
+    } else if (dashboardMatch) {
+      // Handle dashboard queries
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Retrieving dashboard information...',
+        timestamp: new Date()
+      });
+      
+      if (this.sprintSummary) {
+        // Remove the thinking message
+        this.chatMessages.pop();
+        
+        const completionPercentage = this.calculateCompletionPercentage();
+        
+        // Create formatted response with sprint information
+        let formattedResponse = `
+          <div class="sprint-summary p-2 border rounded">
+            <h5>${this.decodeIterationPath(this.selectedIterationPath)}</h5>
+            <div class="row">
+              <div class="col-md-6">
+                <ul class="list-unstyled mb-0">
+                  <li><strong>Total Tasks:</strong> ${this.sprintSummary.totalTasks}</li>
+                  <li><strong>Completed Tasks:</strong> ${this.sprintSummary.completed}</li>
+                  <li><strong>In Progress:</strong> ${this.sprintSummary.inProgress}</li>
+                  <li><strong>Completion:</strong> ${this.sprintSummary.completionPercentage.toFixed(1)}%</li>
+                </ul>
+              </div>
+              <div class="col-md-6">
+                <div class="progress mb-2" style="height: 20px;">
+                  <div class="progress-bar" role="progressbar" 
+                       style="width: ${completionPercentage}%;" 
+                       aria-valuenow="${completionPercentage}" 
+                       aria-valuemin="0" 
+                       aria-valuemax="100">
+                    ${completionPercentage}%
+                  </div>
+                </div>
+                <p class="small text-muted text-center">Sprint Progress</p>
+              </div>
+            </div>
+          </div>
+        `;
+        
+        this.chatMessages.push({
+          role: 'assistant',
+          content: formattedResponse,
+          timestamp: new Date()
+        });
+      } else {
+        // No sprint data available
+        this.chatMessages.pop();
+        this.chatMessages.push({
+          role: 'assistant',
+          content: 'I couldn\'t retrieve the dashboard information. Please try again later.',
+          timestamp: new Date()
+        });
+      }
+    } else if (taskStatusMatch) {
+      // Handle task status distribution queries
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Analyzing task status distribution...',
+        timestamp: new Date()
+      });
+      
+      if (this.tasksByStatus && this.tasksByStatus.length > 0) {
+        // Remove the thinking message
+        this.chatMessages.pop();
+        
+        // Create formatted response with task status distribution
+        let formattedResponse = `<p>Current task status distribution in ${this.decodeIterationPath(this.selectedIterationPath)}:</p>`;
+        
+        // Add a small table showing distribution
+        formattedResponse += `
+          <div class="mt-2">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Status</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        // Add rows for all statuses
+        this.tasksByStatus.forEach(status => {
+          const statusClass = this.getStatusColor(status.status);
+          formattedResponse += `
+            <tr>
+              <td><span class="badge" style="background-color: ${statusClass};">${status.status}</span></td>
+              <td>${status.count}</td>
+            </tr>
+          `;
+        });
+        
+        formattedResponse += `
+              </tbody>
+            </table>
+          </div>
+        `;
+        
+        this.chatMessages.push({
+          role: 'assistant',
+          content: formattedResponse,
+          timestamp: new Date()
+        });
+      } else {
+        // No status data available
+        this.chatMessages.pop();
+        this.chatMessages.push({
+          role: 'assistant',
+          content: 'I couldn\'t retrieve the task status distribution information. Please try again later.',
+          timestamp: new Date()
+        });
+      }
+    } else if (workItemTypeMatch) {
+      // Handle work item type queries
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Analyzing work item type distribution...',
+        timestamp: new Date()
+      });
+      
+      if (this.tasksByType && this.tasksByType.length > 0) {
+        // Remove the thinking message
+        this.chatMessages.pop();
+        
+        // Create formatted response with work item type distribution
+        let formattedResponse = `<p>Current work item type distribution in ${this.decodeIterationPath(this.selectedIterationPath)}:</p>`;
+        
+        // Add a small table showing distribution
+        formattedResponse += `
+          <div class="mt-2">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+        `;
+        
+        // Add rows for all types
+        this.tasksByType.forEach(type => {
+          formattedResponse += `
+            <tr>
+              <td><span class="badge" style="background-color: ${type.color};">${type.type}</span></td>
+              <td>${type.count}</td>
+            </tr>
+          `;
+        });
+        
+        formattedResponse += `
+              </tbody>
+            </table>
+          </div>
+        `;
+        
+        this.chatMessages.push({
+          role: 'assistant',
+          content: formattedResponse,
+          timestamp: new Date()
+        });
+      } else {
+        // No type data available
+        this.chatMessages.pop();
+        this.chatMessages.push({
+          role: 'assistant',
+          content: 'I couldn\'t retrieve the work item type distribution information. Please try again later.',
+          timestamp: new Date()
+        });
+      }
+    } else if (specificTasksMatch) {
+      // Handle tasks with specific status in specific iteration
+      const status = specificTasksMatch[1];
+      const iteration = specificTasksMatch[2];
+      
+      this.chatMessages.push({
+        role: 'assistant',
+        content: `Retrieving ${status} tasks in ${iteration}...`,
+        timestamp: new Date()
+      });
+      
+      this.dashboardService.getTasksByStatusInIteration(status, iteration)
+        .subscribe({
+          next: (tasks: any[]) => {
+            this.chatMessages.pop();
+            
+            if (tasks && tasks.length > 0) {
+              let formattedResponse = `<p>Found ${tasks.length} tasks with status "${status}" in iteration "${iteration}":</p>`;
+              formattedResponse += `<ul class="list-group">`;
+              tasks.forEach((task: any) => {
+                formattedResponse += `
+                  <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                      <strong>#${task.id}</strong>: ${task.title}
+                      ${task.assignedTo ? `<div class="small text-muted">Assigned to: ${task.assignedTo}</div>` : ''}
+                    </div>
+                    <span class="badge" style="background-color: ${this.getStatusColor(task.status || '')};">${task.status || 'Unknown'}</span>
+                  </li>
+                `;
+              });
+              formattedResponse += `</ul>`;
+              
+              this.chatMessages.push({
+                role: 'assistant',
+                content: formattedResponse,
+                timestamp: new Date()
+              });
+            } else {
+              this.chatMessages.push({
+                role: 'assistant',
+                content: `No tasks found with status "${status}" in iteration "${iteration}".`,
+                timestamp: new Date()
+              });
+            }
+          },
+          error: (err: any) => {
+            this.chatMessages.pop();
+            console.error('Error retrieving tasks:', err);
+            this.chatMessages.push({
+              role: 'assistant',
+              content: 'Sorry, I encountered an error retrieving the tasks. Please try again later.',
+              timestamp: new Date()
+            });
+          }
+        });
+    } else if (directMatch && handleStatusCountQuery(message)) {
+      // Successfully handled by the specialized function
+    } else if (noOfStatusMatch && handleStatusCountQuery(message)) {
+      // Successfully handled by the specialized function
+    } else if (simpleStatusMatch) {
+      // Handle simple status name questions
+      const statusName = simpleStatusMatch[1];
+      
+      this.chatMessages.push({
+        role: 'assistant',
+        content: `Retrieving information about the status "${statusName}" in ${this.decodeIterationPath(this.selectedIterationPath)}...`,
+        timestamp: new Date()
+      });
+      
+      this.dashboardService.getTasksByStatusInIteration(statusName, this.selectedIterationPath)
+        .subscribe({
+          next: (tasks: any[]) => {
+            this.chatMessages.pop();
+            
+            if (tasks && tasks.length > 0) {
+              const count = tasks.length;
+              let formattedResponse = `<p>Found ${count} tasks with status "${statusName}" in iteration "${this.selectedIterationPath}":</p>`;
+              
+              this.chatMessages.push({
+                role: 'assistant',
+                content: formattedResponse,
+                timestamp: new Date()
+              });
+            } else {
+              this.chatMessages.push({
+                role: 'assistant',
+                content: `No tasks found with status "${statusName}" in iteration "${this.selectedIterationPath}".`,
+                timestamp: new Date()
+              });
+            }
+          },
+          error: (err: any) => {
+            this.chatMessages.pop();
+            console.error('Error retrieving status information:', err);
+            this.chatMessages.push({
+              role: 'assistant',
+              content: 'Sorry, I encountered an error retrieving the status information. Please try again later.',
+              timestamp: new Date()
+            });
+          }
+        });
+    } else if (statusCardMatch) {
+      // Handle status card questions
+      this.chatMessages.push({
+        role: 'assistant',
+        content: 'Retrieving status card information...',
+        timestamp: new Date()
+      });
+      
+      // Call API to get response for status card questions
+      this.dashboardService.getDashboardCardInformation(this.selectedIterationPath)
+        .subscribe({
+          next: (response: {message: string}) => {
+            this.chatMessages.pop();
+            
+            // Add the actual response
+            const assistantMessage: ChatMessage = {
+              role: 'assistant',
+              content: response.message,
+              timestamp: new Date()
+            };
+            this.chatMessages.push(assistantMessage);
+          },
+          error: (err: any) => {
+            this.chatMessages.pop();
+            
+            console.error('Error getting status card response:', err);
+            // Add fallback response
+            const fallbackMessage: ChatMessage = {
+              role: 'assistant',
+              content: 'Sorry, I encountered an error retrieving the status card information. Please try again later.',
+              timestamp: new Date()
+            };
+            this.chatMessages.push(fallbackMessage);
+          }
+        });
     } else {
       // Show loading indicator for regular chat messages
       this.chatMessages.push({
@@ -1189,5 +1843,144 @@ export class DashboardComponent implements OnInit, AfterViewInit {
    */
   getTaskUrl(taskId: number): string {
     return `${environment.azureDevOpsUrl}/${environment.organization}/${environment.project}/_workitems/edit/${taskId}`;
+  }
+
+  /**
+   * Directly handle "number of X tasks" queries with a string parsing approach
+   * @param message The user message
+   */
+  handleStatusCountQueryDirect(message: string): void {
+    let queryTerm = '';
+    let iterationPath = this.selectedIterationPath;
+    
+    // Remove "number of" or "no of" prefix
+    let remainder = '';
+    if (message.toLowerCase().startsWith('number of ')) {
+      remainder = message.substring('number of '.length);
+    } else if (message.toLowerCase().startsWith('no of ')) {
+      remainder = message.substring('no of '.length);
+    }
+    
+    // Check if there's an iteration path specified
+    const inIndex = remainder.toLowerCase().lastIndexOf(' in ');
+    const underIndex = remainder.toLowerCase().lastIndexOf(' under ');
+    const withinIndex = remainder.toLowerCase().lastIndexOf(' within ');
+    const forIndex = remainder.toLowerCase().lastIndexOf(' for ');
+    
+    let splitIndex = -1;
+    if (inIndex > 0) splitIndex = inIndex;
+    if (underIndex > 0 && (splitIndex < 0 || underIndex < splitIndex)) splitIndex = underIndex;
+    if (withinIndex > 0 && (splitIndex < 0 || withinIndex < splitIndex)) splitIndex = withinIndex;
+    if (forIndex > 0 && (splitIndex < 0 || forIndex < splitIndex)) splitIndex = forIndex;
+    
+    if (splitIndex > 0) {
+      // Extract iteration path
+      iterationPath = remainder.substring(splitIndex + 4).trim(); // +4 to skip " in ", " for ", etc.
+      
+      // Extract query term
+      queryTerm = remainder.substring(0, splitIndex).trim();
+    } else {
+      // No iteration path, just extract query term
+      queryTerm = remainder.trim();
+    }
+    
+    // Remove " tasks" or " items" suffix from query term if present
+    queryTerm = queryTerm.replace(/\s+(?:tasks|work items|items)$/i, '').trim();
+    
+    console.log(`Extracted term: "${queryTerm}", iteration: "${iterationPath}"`);
+    
+    // Determine if this is a type query or a status query
+    const knownTypes = ['bug', 'task', 'user story', 'requirement', 'change request', 'code merge'];
+    const isTypeQuery = knownTypes.includes(queryTerm.toLowerCase());
+    
+    // Special handling for known statuses to ensure correct casing
+    let normalizedValue = queryTerm;
+    if (!isTypeQuery) {
+      if (queryTerm.toLowerCase() === 'cs-new' || queryTerm.toLowerCase() === 'cs new') {
+        normalizedValue = 'CS-New';
+      } else if (queryTerm.toLowerCase() === 'dev-new' || queryTerm.toLowerCase() === 'dev new') {
+        normalizedValue = 'Dev-New';
+      } else if (queryTerm.toLowerCase() === 'dev in progress') {
+        normalizedValue = 'Dev In progress';
+      } else if (queryTerm.toLowerCase() === 'code review') {
+        normalizedValue = 'Code Review';
+      } else if (queryTerm.toLowerCase() === 'planned') {
+        normalizedValue = 'Planned';
+      } else if (queryTerm.toLowerCase() === 'active') {
+        normalizedValue = 'Active';
+      }
+    } else {
+      // Capitalize the first letter of each word in the type
+      normalizedValue = queryTerm.split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(' ');
+    }
+    
+    // Show loading message
+    this.chatMessages.push({
+      role: 'assistant',
+      content: `Retrieving the count of ${normalizedValue} ${isTypeQuery ? 'work items' : 'tasks'} in ${iterationPath}...`,
+      timestamp: new Date()
+    });
+    
+    // Define direct API URL instead of using the service that might be filtering incorrectly
+    const encodedPath = encodeURIComponent(iterationPath).replace(/%5C/g, '%255C');
+    const url = `http://localhost:5000/api/tasks?iterationPath=${encodedPath}`;
+    
+    // Get all tasks for the iteration and filter by status directly
+    this.http.get<any[]>(url)
+      .subscribe({
+        next: (tasks: any[]) => {
+          this.chatMessages.pop(); // Remove loading message
+          
+          if (tasks && tasks.length > 0) {
+            // Filter tasks based on whether it's a type or status query
+            const matchingTasks = tasks.filter((task: any) => {
+              if (isTypeQuery) {
+                const taskType = task.type || '';
+                return taskType.toLowerCase() === normalizedValue.toLowerCase();
+              } else {
+                const taskStatus = task.status || '';
+                return taskStatus.toLowerCase() === normalizedValue.toLowerCase();
+              }
+            });
+            
+            const count = matchingTasks.length;
+            
+            if (count > 0) {
+              let formattedResponse = `<p>Found ${count} ${isTypeQuery ? normalizedValue : ''} ${isTypeQuery ? 'work items' : `tasks with status "${normalizedValue}"`} in iteration "${iterationPath}".</p>`;
+              
+              this.chatMessages.push({
+                role: 'assistant',
+                content: formattedResponse,
+                timestamp: new Date()
+              });
+            } else {
+              this.chatMessages.push({
+                role: 'assistant', 
+                content: isTypeQuery 
+                  ? `No work items found with type "${normalizedValue}" in iteration "${iterationPath}".`
+                  : `No tasks found with status "${normalizedValue}" in iteration "${iterationPath}".`,
+                timestamp: new Date()
+              });
+            }
+          } else {
+            this.chatMessages.push({
+              role: 'assistant', 
+              content: `No tasks found in iteration "${iterationPath}".`,
+              timestamp: new Date()
+            });
+          }
+        },
+        error: (err: any) => {
+          this.chatMessages.pop();
+          console.error('Error retrieving task count:', err);
+          this.chatMessages.push({
+            role: 'assistant',
+            content: 'Sorry, I encountered an error retrieving the task count. Please try again later.',
+            timestamp: new Date()
+          });
+        }
+      });
   }
 } 

@@ -93,6 +93,17 @@
                   <li class="mb-2"><span class="badge bg-success me-2">✓</span> Assign task #123 to John</li>
                   <li class="mb-2"><span class="badge bg-primary me-2">➤</span> Suggest someone for the next task assignment</li>
                   <li class="mb-2"><span class="badge bg-primary me-2">➤</span> What's the current sprint progress?</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> Show task #48044 details</li>
+                  <li class="mb-2"><span class="badge bg-warning me-2">!</span> Show blocked tasks</li>
+                  <li class="mb-2"><span class="badge bg-primary me-2">➤</span> Tasks in DEV - WIP status</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> Show me the dashboard</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> Show task status distribution</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> What's the breakdown by work item type?</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> How many Active tasks?</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> Dev-New</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> Show status cards</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> No of CS-New tasks</li>
+                  <li class="mb-2"><span class="badge bg-info me-2">i</span> Number of Planned tasks in Techoil\2.3.23</li>
                 </ul>
               </div>
             </div>
@@ -249,7 +260,6 @@
                 <th>ID</th>
                 <th>Title</th>
                 <th>Assigned To</th>
-                <th>Type</th>
               </tr>
             </thead>
             <tbody>
@@ -257,7 +267,6 @@
                 <td><a [href]="getTaskUrl(task.id)" target="_blank">#{{ task.id }}</a></td>
                 <td>{{ task.title }}</td>
                 <td>{{ task.assignedTo || 'Unassigned' }}</td>
-                <td>{{ task.workItemType }}</td>
               </tr>
             </tbody>
           </table>
