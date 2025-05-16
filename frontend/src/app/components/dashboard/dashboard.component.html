@@ -166,7 +166,10 @@
                  'status-clarification': status.status === 'Require Clarification' || status.status.toLowerCase().includes('clarification'),
                  'status-resolved': status.status === 'Resolved' || status.status === 'Done' || status.status === 'Completed',
                  'status-verified': status.status === 'Verified' || status.status === 'Validated'
-               }">
+               }"
+               (click)="showTasksForStatus(status.status)" 
+               style="cursor: pointer;"
+               title="Click to view tasks">
             <div class="card-body text-center text-white p-3">
               <div class="text-2xl font-bold mb-1">{{ status.count }}</div>
               <div class="text-lg">{{ status.status }}</div>
@@ -205,6 +208,63 @@
       <!-- No data message -->
       <div *ngIf="!loadingTaskDetails && (!tasksByType || tasksByType.length === 0) && !taskDetailsError" class="text-center py-4">
         <p class="text-muted">No work item type data available.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Task Status Modal -->
+<div class="modal fade" id="taskStatusModal" tabindex="-1" aria-labelledby="taskStatusModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" [ngClass]="{'status-active-header': selectedStatus === 'Active',
+                                           'status-code-review-header': selectedStatus === 'Code Review',
+                                           'status-dev-progress-header': selectedStatus === 'Dev In Progress' || selectedStatus === 'Dev In progress',
+                                           'status-dev-new-header': selectedStatus === 'Dev-New' || selectedStatus === 'New',
+                                           'status-planned-header': selectedStatus === 'Planned',
+                                           'status-cs-new-header': selectedStatus === 'CS-New' || selectedStatus === 'CS-new',
+                                           'status-proposed-header': selectedStatus === 'Proposed',
+                                           'status-clarification-header': selectedStatus === 'Require Clarification',
+                                           'status-resolved-header': selectedStatus === 'Resolved' || selectedStatus === 'Done' || selectedStatus === 'Completed',
+                                           'status-verified-header': selectedStatus === 'Verified' || selectedStatus === 'Validated' }">
+        <h5 class="modal-title" id="taskStatusModalLabel">Tasks with Status: {{ selectedStatus }}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="loadingStatusTasks" class="text-center py-3">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading tasks...</span>
+          </div>
+          <p class="mt-2">Fetching tasks with status: {{ selectedStatus }}</p>
+        </div>
+        
+        <div *ngIf="!loadingStatusTasks && statusTasks.length === 0" class="alert alert-info">
+          No tasks found with status: {{ selectedStatus }}
+        </div>
+        
+        <div *ngIf="!loadingStatusTasks && statusTasks.length > 0">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Assigned To</th>
+                <th>Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let task of statusTasks">
+                <td><a [href]="getTaskUrl(task.id)" target="_blank">#{{ task.id }}</a></td>
+                <td>{{ task.title }}</td>
+                <td>{{ task.assignedTo || 'Unassigned' }}</td>
+                <td>{{ task.workItemType }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>

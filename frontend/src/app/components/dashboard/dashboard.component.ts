@@ -17,6 +17,9 @@ import {
 import { forkJoin, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../environments/environment';
+// Import Modal from bootstrap
+declare var bootstrap: any;
 
 declare global {
   interface Window {
@@ -148,6 +151,12 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   // Stats grouping for types and statuses
   tasksByType: { type: string; count: number; color: string }[] = [];
 
+  // Status popup properties
+  selectedStatus: string = '';
+  statusTasks: any[] = [];
+  loadingStatusTasks: boolean = false;
+  taskDetailsModal: any;
+
   // Method to decode iteration path for display
   decodeIterationPath(path: string): string {
     if (!path) return '';
@@ -170,7 +179,11 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    // Charts will be initialized after data is loaded
+    // Initialize the task status modal
+    const modalElement = document.getElementById('taskStatusModal');
+    if (modalElement) {
+      this.taskDetailsModal = new bootstrap.Modal(modalElement);
+    }
   }
 
   loadDashboardData(): void {
@@ -1121,5 +1134,60 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   // Get total work items for percentage calculation
   getTotalWorkItems(): number {
     return this.tasksByType.reduce((total, item) => total + item.count, 0);
+  }
+
+  /**
+   * Show tasks for a specific status in a modal
+   * @param status The status to show tasks for
+   */
+  showTasksForStatus(status: string): void {
+    this.selectedStatus = status;
+    this.loadingStatusTasks = true;
+    this.statusTasks = [];
+    
+    // Show the modal first, then load the data
+    if (this.taskDetailsModal) {
+      this.taskDetailsModal.show();
+    }
+    
+    // Define the API URL
+    const encodedPath = encodeURIComponent(this.selectedIterationPath).replace(/%5C/g, '%255C');
+    const url = `http://localhost:5000/api/tasks?iterationPath=${encodedPath}`;
+    
+    this.http.get<any[]>(url)
+      .pipe(
+        finalize(() => {
+          this.loadingStatusTasks = false;
+        })
+      )
+      .subscribe({
+        next: (workItems) => {
+          if (workItems && workItems.length > 0) {
+            // Filter the work items by the selected status
+            this.statusTasks = workItems.filter(item => 
+              item.status === status || 
+              (status === 'Dev In progress' && 
+               (item.status === 'Dev In Progress' || 
+                (item.status.toLowerCase().includes('dev') && 
+                 item.status.toLowerCase().includes('progress'))))
+            );
+          } else {
+            this.statusTasks = [];
+          }
+        },
+        error: (err) => {
+          console.error('Error loading tasks for status:', err);
+          this.statusTasks = [];
+        }
+      });
+  }
+  
+  /**
+   * Get URL for a task to link to Azure DevOps
+   * @param taskId The task ID
+   * @returns URL string for the task
+   */
+  getTaskUrl(taskId: number): string {
+    return `${environment.azureDevOpsUrl}/${environment.organization}/${environment.project}/_workitems/edit/${taskId}`;
   }
 } 

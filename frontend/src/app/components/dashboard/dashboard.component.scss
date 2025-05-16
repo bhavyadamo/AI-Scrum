@@ -443,4 +443,77 @@ h2, .sprint-title {
 /* Make sure the card containing Dev In progress is visible */
 .card-body:has(.text-lg:contains("Dev In progress")) {
   background-color: #d81b60 !important;
+}
+
+/* Modal header styles for different statuses */
+.status-active-header {
+  background-color: #1E90FF !important;
+  color: white;
+}
+
+.status-code-review-header {
+  background-color: #6495ED !important;
+  color: white;
+}
+
+.status-cs-new-header {
+  background-color: #BA55D3 !important;
+  color: white;
+}
+
+.status-dev-progress-header {
+  background-color: #FF69B4 !important;
+  color: white;
+}
+
+.status-dev-new-header {
+  background-color: #3CB371 !important;
+  color: white;
+}
+
+.status-planned-header {
+  background-color: #9370DB !important;
+  color: white;
+}
+
+.status-proposed-header {
+  background-color: #A9A9A9 !important;
+  color: white;
+}
+
+.status-clarification-header {
+  background-color: #FFB347 !important;
+  color: white;
+}
+
+.status-resolved-header {
+  background-color: #DA70D6 !important;
+  color: white;
+}
+
+.status-verified-header {
+  background-color: #00BFFF !important;
+  color: white;
+}
+
+/* Task status table styling */
+.modal-body table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.modal-body th {
+  background-color: #f0f2ff;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.modal-body td {
+  vertical-align: middle;
+}
+
+.modal-body tr:hover {
+  background-color: #e8eaf6;
 } 
