@@ -21,6 +21,25 @@
       </div>
     </div>
 
+    <!-- Default role selection -->
+    <div class="mb-4">
+      <h6>Default Role Settings</h6>
+      <div class="form-group">
+        <label for="defaultRole" class="form-label">Default Role for New Users</label>
+        <select id="defaultRole" class="form-select" [(ngModel)]="defaultRole" [disabled]="!authService.canEditUserRoles()">
+          <option *ngFor="let role of roleOptions" [value]="role.value">{{ role.label }}</option>
+        </select>
+        <small class="form-text text-muted">This role will be assigned to new users by default</small>
+      </div>
+      <div class="mt-3">
+        <button class="btn btn-primary" (click)="saveDefaultRole()" [disabled]="loading || !authService.canEditUserRoles()">
+          <i class="bi bi-check-circle me-1"></i> Save Default Role
+        </button>
+      </div>
+    </div>
+
+    <hr class="my-4">
+
     <!-- No permission message -->
     <div *ngIf="!authService.canViewUserRoles() && !loading" class="alert alert-warning">
       <i class="bi bi-lock-fill me-2"></i>
@@ -28,41 +47,51 @@
     </div>
 
     <!-- User roles table -->
-    <div *ngIf="authService.canViewUserRoles() && !loading && userRoles.length > 0" class="table-responsive">
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th *ngIf="authService.canEditUserRoles()">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let user of userRoles">
-            <td>{{ user.userName }}</td>
-            <td>{{ user.email }}</td>
-            <td>
-              <span [ngClass]="getRoleBadgeClass(user.role)">{{ user.role }}</span>
-            </td>
-            <td *ngIf="authService.canEditUserRoles()">
-              <select class="form-select form-select-sm" 
-                      [(ngModel)]="user.role" 
-                      (ngModelChange)="updateUserRole(user, $event)"
-                      [disabled]="loading">
-                <option *ngFor="let role of roleOptions" [ngValue]="role.value">
-                  {{ role.label }}
-                </option>
-              </select>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <div *ngIf="authService.canViewUserRoles() && !loading">
+      <h6>User Role Assignments</h6>
+      <div *ngIf="userRoles.length > 0" class="table-responsive mt-3">
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th *ngIf="authService.canEditUserRoles()">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let user of userRoles">
+              <td>{{ user.userName }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                <span [ngClass]="getRoleBadgeClass(user.role)">{{ user.role }}</span>
+              </td>
+              <td *ngIf="authService.canEditUserRoles()">
+                <select class="form-select form-select-sm" 
+                        [(ngModel)]="user.role" 
+                        (ngModelChange)="updateUserRole(user, $event)"
+                        [disabled]="loading">
+                  <option *ngFor="let role of roleOptions" [ngValue]="role.value">
+                    {{ role.label }}
+                  </option>
+                </select>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <!-- Empty state -->
-    <div *ngIf="authService.canViewUserRoles() && !loading && userRoles.length === 0" class="text-center py-4">
-      <p class="text-muted">No users found</p>
+      <!-- Empty state -->
+      <div *ngIf="userRoles.length === 0" class="text-center py-4">
+        <p class="text-muted">No users found</p>
+      </div>
+
+      <!-- Save all roles button -->
+      <div class="mt-3" *ngIf="userRoles.length > 0 && authService.canEditUserRoles()">
+        <button class="btn btn-primary" (click)="saveAllRoles()" [disabled]="loading">
+          <i class="bi bi-check-circle me-1"></i> Save All Role Changes
+        </button>
+      </div>
     </div>
   </div>
 </div> 

@@ -1,1 +1,107 @@
-/* AI model settings component styles */ 
+/* AI model settings component styles */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-check {
+  padding-left: 1.8rem;
+  margin-bottom: 1rem;
+  
+  .form-check-input {
+    width: 1.2em;
+    height: 1.2em;
+    margin-top: 0.15em;
+    margin-left: -1.8rem;
+    
+    &:checked {
+      background-color: #3949ab;
+      border-color: #3949ab;
+    }
+    
+    &:focus {
+      border-color: #5c6bc0;
+      box-shadow: 0 0 0 0.2rem rgba(92, 107, 192, 0.25);
+    }
+  }
+  
+  .form-check-label {
+    font-weight: 500;
+  }
+}
+
+.input-group {
+  .form-control {
+    border-right: 0;
+    
+    &:focus {
+      box-shadow: none;
+    }
+  }
+  
+  .btn-outline-secondary {
+    background-color: white;
+    border-color: #c5cae9;
+    border-left: 0;
+    color: #3949ab;
+    
+    &:hover {
+      background-color: #e8eaf6;
+      color: #303f9f;
+    }
+    
+    &:focus {
+      box-shadow: none;
+    }
+  }
+}
+
+// Feature settings section styling
+.feature-section {
+  background-color: #ede7f6;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  border-left: 4px solid #673ab7;
+  
+  h6 {
+    color: #673ab7;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+}
+
+// Model type options styling
+.model-type-option {
+  border: 1px solid #c5cae9;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  
+  &:hover {
+    background-color: #e8eaf6;
+  }
+  
+  &.selected {
+    background-color: #e8eaf6;
+    border-color: #3949ab;
+    box-shadow: 0 0 0 1px #3949ab;
+  }
+  
+  .model-type-title {
+    font-weight: 600;
+    color: #2c3e50;
+  }
+  
+  .model-type-description {
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+}
+
+.alert-info {
+  background-color: #e1f5fe;
+  border-color: #03a9f4;
+  color: #0277bd;
+} 

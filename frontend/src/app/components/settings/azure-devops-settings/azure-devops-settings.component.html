@@ -27,8 +27,78 @@
       You do not have permission to view Azure DevOps settings. Contact an administrator.
     </div>
 
-    <!-- Current settings display -->
-    <div *ngIf="authService.canViewAzureDevOpsPat() && !loading && settings">
+    <!-- Azure DevOps Configuration Form -->
+    <div *ngIf="authService.canEditAzureDevOpsPat() && !loading">
+      <form [formGroup]="azureDevOpsForm" (ngSubmit)="saveAzureDevOpsSettings()">
+        <div class="mb-3">
+          <label for="organizationUrl" class="form-label">Organization URL</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="organizationUrl" 
+            formControlName="organizationUrl"
+            placeholder="https://dev.azure.com/your-organization">
+          <div *ngIf="azureDevOpsForm.get('organizationUrl')?.invalid && azureDevOpsForm.get('organizationUrl')?.touched" class="text-danger mt-1">
+            <small *ngIf="azureDevOpsForm.get('organizationUrl')?.errors?.['required']">Organization URL is required</small>
+            <small *ngIf="azureDevOpsForm.get('organizationUrl')?.errors?.['pattern']">Enter a valid Azure DevOps URL</small>
+          </div>
+          <small class="form-text text-muted">
+            Example: https://dev.azure.com/your-organization
+          </small>
+        </div>
+
+        <div class="mb-3">
+          <label for="personalAccessToken" class="form-label">Personal Access Token (PAT)</label>
+          <div class="input-group">
+            <input 
+              [type]="showPat ? 'text' : 'password'" 
+              class="form-control" 
+              id="personalAccessToken" 
+              formControlName="personalAccessToken"
+              placeholder="Enter your Personal Access Token">
+            <button class="btn btn-outline-secondary" type="button" (click)="togglePatVisibility()">
+              <i class="bi" [ngClass]="showPat ? 'bi-eye-slash' : 'bi-eye'"></i>
+            </button>
+          </div>
+          <div *ngIf="azureDevOpsForm.get('personalAccessToken')?.invalid && azureDevOpsForm.get('personalAccessToken')?.touched" class="text-danger mt-1">
+            <small *ngIf="azureDevOpsForm.get('personalAccessToken')?.errors?.['required']">Personal Access Token is required</small>
+            <small *ngIf="azureDevOpsForm.get('personalAccessToken')?.errors?.['minlength']">Token must be at least 20 characters</small>
+          </div>
+          <small class="form-text text-muted">
+            <i class="bi bi-info-circle"></i>
+            The PAT is used to authenticate with Azure DevOps. 
+            <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate" target="_blank">
+              Learn more
+            </a>
+          </small>
+        </div>
+
+        <div class="mb-3">
+          <label for="projectName" class="form-label">Project Name</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="projectName" 
+            formControlName="projectName"
+            placeholder="Your Azure DevOps project name">
+          <div *ngIf="azureDevOpsForm.get('projectName')?.invalid && azureDevOpsForm.get('projectName')?.touched" class="text-danger mt-1">
+            <small *ngIf="azureDevOpsForm.get('projectName')?.errors?.['required']">Project name is required</small>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-secondary" (click)="testConnection()" [disabled]="azureDevOpsForm.invalid || loading">
+            <i class="bi bi-lightning-charge me-1"></i> Test Connection
+          </button>
+          <button type="submit" class="btn btn-primary" [disabled]="azureDevOpsForm.invalid || loading">
+            <i class="bi bi-check-circle me-1"></i> Save DevOps Settings
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Current settings display for non-admin users -->
+    <div *ngIf="authService.canViewAzureDevOpsPat() && !authService.canEditAzureDevOpsPat() && !loading && settings">
       <div class="mb-4">
         <h6 class="mb-2">Current Settings</h6>
         <div class="row g-3">
@@ -56,40 +126,6 @@
             </div>
           </div>
         </div>
-      </div>
-
-      <!-- Update PAT form - only for admins -->
-      <div *ngIf="authService.canEditAzureDevOpsPat()">
-        <hr class="my-4">
-        <h6 class="mb-3">Update Personal Access Token</h6>
-        <form [formGroup]="patForm" (ngSubmit)="updatePat()">
-          <div class="mb-3">
-            <label for="pat" class="form-label">New Personal Access Token</label>
-            <div class="input-group">
-              <input 
-                type="password" 
-                class="form-control" 
-                id="pat" 
-                formControlName="personalAccessToken"
-                placeholder="Enter your Azure DevOps PAT">
-            </div>
-            <div *ngIf="patForm.get('personalAccessToken')?.invalid && patForm.get('personalAccessToken')?.touched" class="text-danger mt-1">
-              <small *ngIf="patForm.get('personalAccessToken')?.errors?.['required']">Personal Access Token is required</small>
-              <small *ngIf="patForm.get('personalAccessToken')?.errors?.['minlength']">Token must be at least 20 characters</small>
-            </div>
-            <small class="form-text text-muted mt-1">
-              <i class="bi bi-info-circle"></i>
-              The Personal Access Token is used to authenticate with Azure DevOps. 
-              <a href="https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate" target="_blank">
-                Learn more
-              </a>
-            </small>
-          </div>
-          
-          <button type="submit" class="btn btn-primary" [disabled]="patForm.invalid || loading">
-            <i class="bi bi-check-circle me-1"></i> Save Token
-          </button>
-        </form>
       </div>
     </div>
   </div>

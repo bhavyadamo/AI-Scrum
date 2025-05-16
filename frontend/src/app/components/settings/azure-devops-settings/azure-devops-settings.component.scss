@@ -1,1 +1,94 @@
-/* Azure DevOps settings component styles */ 
+/* Azure DevOps settings component styles */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.input-group {
+  .form-control {
+    border-right: 0;
+    
+    &:focus {
+      box-shadow: none;
+    }
+  }
+  
+  .btn-outline-secondary {
+    background-color: white;
+    border-color: #c5cae9;
+    border-left: 0;
+    color: #3949ab;
+    
+    &:hover {
+      background-color: #e8eaf6;
+      color: #303f9f;
+    }
+    
+    &:focus {
+      box-shadow: none;
+    }
+  }
+}
+
+.alert-info {
+  background-color: #e1f5fe;
+  border-color: #03a9f4;
+  color: #0277bd;
+}
+
+.alert-warning {
+  background-color: #fff8e1;
+  border-color: #ffc107;
+  color: #ff8f00;
+}
+
+.alert-success {
+  background-color: #e8f5e9;
+  border-color: #4caf50;
+  color: #2e7d32;
+}
+
+.alert-danger {
+  background-color: #fbe9e7;
+  border-color: #f44336;
+  color: #c62828;
+}
+
+// Test Connection Button
+.btn-secondary {
+  background-color: #5c6bc0;
+  border-color: #5c6bc0;
+  
+  &:hover {
+    background-color: #3949ab;
+    border-color: #3949ab;
+  }
+  
+  &:focus {
+    box-shadow: 0 0 0 0.2rem rgba(92, 107, 192, 0.5);
+  }
+}
+
+// Connection status styling
+.connection-status {
+  padding: 1rem;
+  margin-top: 1.5rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+  
+  &.success {
+    background-color: #e8f5e9;
+    border-left: 4px solid #4caf50;
+  }
+  
+  &.error {
+    background-color: #fbe9e7;
+    border-left: 4px solid #f44336;
+  }
+  
+  i {
+    font-size: 1.5rem;
+    margin-right: 1rem;
+  }
+} 

@@ -658,7 +658,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
   private getStandardAutoAssignSuggestions(allDevNewTasks: WorkItem[], normalizedPath: string): void {
     console.log('Getting standard auto-assign suggestions with path:', normalizedPath);
     console.log('Dev-New tasks available for assignment:', allDevNewTasks);
-    
+                  
     // Step 1: Get team members with their current task counts
     this.loading.taskCounts = true;
     
@@ -684,7 +684,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
               email: '',
               isSelected: true
             }));
-          } else {
+                  } else {
             // If no selected members in settings, fall back to filtering by team name
             this.filterRnDTeamMembers();
           }
@@ -704,10 +704,10 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
       // If we don't have any eligible team members, show an error
       if (eligibleTeamMembers.length === 0) {
         this.error.preview = `No team members found in settings for team "${this.teamName}". Please update team filter settings or disable team filtering.`;
-        this.loading.preview = false;
+                    this.loading.preview = false;
         this.loading.taskCounts = false;
         return;
-      }
+                  }
     }
     
     // First, get the team members with their task counts
@@ -908,13 +908,13 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
         .filter(Boolean);
       
       console.log(`Fallback with team filter: Only these ${eligibleTeamMembers.length} RND members will be considered:`, eligibleTeamMembers);
-      
+        
       // If we don't have any eligible team members, show an error
       if (eligibleTeamMembers.length === 0) {
         this.error.preview = `No team members found for team "${this.teamName}". Please add team members or disable team filtering.`;
-        this.loading.preview = false;
-        return;
-      }
+          this.loading.preview = false;
+          return;
+        }
     }
     
     this.taskService.getAutoAssignSuggestions(this.currentIterationPath).subscribe({
@@ -951,17 +951,17 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
             suggestedTaskIds.includes(task.id)
           );
         }
-        
+          
         // If we still don't have tasks to assign, use ALL Dev-New tasks with a simple balanced distribution
-        if (this.assignPreviewTasks.length === 0) {
+          if (this.assignPreviewTasks.length === 0) {
           console.log('No task suggestions matched. Using all Dev-New tasks for assignment.');
           // Include all Dev-New tasks, prioritizing unassigned ones
           this.assignPreviewTasks = [...allDevNewTasks];
-          
+              
           // Create simple suggestions for all tasks
-          if (this.assignPreviewTasks.length > 0) {
-            this.assignPreviewSuggestions = {};
-            
+              if (this.assignPreviewTasks.length > 0) {
+                this.assignPreviewSuggestions = {};
+                
             // Get available team members based on team filter setting
             let availableMembers: string[] = [];
             
@@ -973,8 +973,8 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
               // Otherwise use all team members
               availableMembers = this.teamMembers
                 .filter(m => typeof m === 'object')
-                .map(m => m.displayName)
-                .filter(Boolean);
+                  .map(m => m.displayName)
+                  .filter(Boolean);
               console.log(`Using ${availableMembers.length} team members for fallback assignment`);
             }
             
@@ -1012,7 +1012,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
             sortedMembers.forEach(m => newAssignments[m] = 0);
             
             // Round-robin assignment to team members, starting with those with fewest tasks
-            this.assignPreviewTasks.forEach((task, index) => {
+                this.assignPreviewTasks.forEach((task, index) => {
               // Find the member with the lowest total workload (existing + new)
               const membersByTotalLoad = [...sortedMembers].sort((a, b) => {
                 const aTotal = (memberTaskCounts[a] || 0) + (newAssignments[a] || 0);
@@ -1132,7 +1132,7 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     const match = suggestion.match(/^(.+?)\s*\(/);
     if (match && match[1]) {
       return match[1].trim();
-    }
+    } 
     
     // If no parenthesis found, return the whole string
     return suggestion.trim();
@@ -1152,8 +1152,8 @@ export class TaskDistributionComponent implements OnInit, AfterViewInit {
     }
     
     return '';
-  }
-  
+    }
+    
   /**
    * Count assignments by specific reason keyword
    * @param reasonType The type of reason to count ('expertise', 'completed', 'workload', 'default', or 'team')

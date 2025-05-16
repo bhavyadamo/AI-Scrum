@@ -1,7 +1,8 @@
 export enum UserRole {
   Member = 'Member',
   ScrumMaster = 'ScrumMaster',
-  Admin = 'Admin'
+  Admin = 'Admin',
+  Viewer = 'Viewer'
 }
 
 export interface UserRoleDto {
@@ -14,6 +15,7 @@ export interface UserRoleDto {
 export interface AzureDevOpsSettingsDto {
   personalAccessToken: string;
   organization: string;
+  organizationUrl?: string;
   project: string;
 }
 
@@ -21,6 +23,8 @@ export interface AiModelSettingsDto {
   enableAutoUpdate: boolean;
   modelEndpoint: string;
   apiKey: string;
+  modelType?: string;
+  enableRecommendations?: boolean;
 }
 
 export interface SettingsDto {
@@ -40,4 +44,8 @@ export interface UpdateAzureDevOpsPATRequest {
 
 export interface UpdateAiModelSettingsRequest {
   enableAutoUpdate: boolean;
+  modelType?: string;
+  modelEndpoint?: string;
+  apiKey?: string;
+  enableRecommendations?: boolean;
 } 

@@ -21,55 +21,103 @@
       </div>
     </div>
 
-    <!-- AI Model Settings -->
-    <div *ngIf="!loading && settings">
-      <div class="mb-4">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <div class="form-group">
-              <label class="form-label text-muted">Model Endpoint</label>
-              <input type="text" class="form-control" [value]="settings.modelEndpoint" readonly>
-            </div>
-          </div>
-          <div class="col-md-6">
-            <div class="form-group">
-              <label class="form-label text-muted">API Key</label>
-              <input type="password" class="form-control" value="••••••••••••••••" readonly>
-            </div>
-          </div>
-        </div>
-      </div>
+    <!-- No permission message -->
+    <div *ngIf="!authService.canViewAiModelSettings() && !loading" class="alert alert-warning">
+      <i class="bi bi-lock-fill me-2"></i>
+      You do not have permission to view AI model settings. Contact an administrator.
+    </div>
 
-      <!-- AI Model Auto-Update Toggle -->
-      <div class="mt-4">
-        <div class="card bg-light">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-              <div>
-                <h6 class="mb-0">AI Model Auto-Update</h6>
-                <p class="text-muted mb-0 small">
-                  When enabled, the AI model will automatically update with the latest data.
-                </p>
-              </div>
-              <div class="form-check form-switch">
-                <input 
-                  class="form-check-input" 
-                  type="checkbox" 
-                  role="switch" 
-                  id="aiAutoUpdate" 
-                  [checked]="settings.enableAutoUpdate" 
-                  (change)="toggleAutoUpdate()"
-                  [disabled]="loading || !authService.canEditAiModelSettings()">
-              </div>
-            </div>
+    <!-- AI Model Settings Form -->
+    <div *ngIf="authService.canViewAiModelSettings() && !loading">
+      <form [formGroup]="aiModelForm" (ngSubmit)="saveAiModelSettings()">
+        <div class="mb-3">
+          <label for="modelType" class="form-label">AI Model Provider</label>
+          <select id="modelType" class="form-select" formControlName="modelType">
+            <option value="openai">OpenAI</option>
+            <option value="azureopenai">Azure OpenAI</option>
+            <option value="custom">Custom Model</option>
+          </select>
+          <div *ngIf="aiModelForm.get('modelType')?.invalid && aiModelForm.get('modelType')?.touched" class="text-danger mt-1">
+            <small>Model provider is required</small>
           </div>
         </div>
-        
-        <!-- Info message about permissions -->
-        <div *ngIf="!authService.canEditAiModelSettings()" class="alert alert-info mt-3">
-          <i class="bi bi-info-circle me-2"></i>
-          You can view AI model settings, but you need Admin or Scrum Master role to modify them.
+
+        <div class="mb-3">
+          <label for="apiKey" class="form-label">API Key</label>
+          <div class="input-group">
+            <input 
+              [type]="showApiKey ? 'text' : 'password'" 
+              class="form-control" 
+              id="apiKey" 
+              formControlName="apiKey"
+              placeholder="Enter your API key">
+            <button class="btn btn-outline-secondary" type="button" (click)="toggleApiKeyVisibility()">
+              <i class="bi" [ngClass]="showApiKey ? 'bi-eye-slash' : 'bi-eye'"></i>
+            </button>
+          </div>
+          <div *ngIf="aiModelForm.get('apiKey')?.invalid && aiModelForm.get('apiKey')?.touched" class="text-danger mt-1">
+            <small *ngIf="aiModelForm.get('apiKey')?.errors?.['required']">API key is required</small>
+          </div>
         </div>
+
+        <div class="mb-3" *ngIf="aiModelForm.get('modelType')?.value === 'azureopenai' || aiModelForm.get('modelType')?.value === 'custom'">
+          <label for="endpoint" class="form-label">Endpoint URL</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="endpoint" 
+            formControlName="endpoint"
+            placeholder="Enter the model endpoint URL">
+          <div *ngIf="aiModelForm.get('endpoint')?.invalid && aiModelForm.get('endpoint')?.touched" class="text-danger mt-1">
+            <small *ngIf="aiModelForm.get('endpoint')?.errors?.['required']">Endpoint URL is required</small>
+            <small *ngIf="aiModelForm.get('endpoint')?.errors?.['pattern']">Enter a valid URL</small>
+          </div>
+          <small class="form-text text-muted">
+            For Azure OpenAI, use your deployment URL
+          </small>
+        </div>
+
+        <div class="mb-4">
+          <div class="form-check">
+            <input 
+              class="form-check-input" 
+              type="checkbox" 
+              id="enableRecommendations" 
+              formControlName="enableRecommendations">
+            <label class="form-check-label" for="enableRecommendations">
+              Enable AI Recommendations
+            </label>
+          </div>
+          <small class="form-text text-muted">
+            When enabled, the system will provide AI-powered recommendations for task estimation and assignment
+          </small>
+        </div>
+
+        <div class="mb-4">
+          <div class="form-check">
+            <input 
+              class="form-check-input" 
+              type="checkbox" 
+              id="enableAutoUpdate" 
+              formControlName="enableAutoUpdate">
+            <label class="form-check-label" for="enableAutoUpdate">
+              Enable Automatic Model Updates
+            </label>
+          </div>
+          <small class="form-text text-muted">
+            When enabled, the AI model will automatically receive updates and improvements
+          </small>
+        </div>
+
+        <button type="submit" class="btn btn-primary" [disabled]="aiModelForm.invalid || loading || !authService.canEditAiModelSettings()">
+          <i class="bi bi-check-circle me-1"></i> Save AI Model Settings
+        </button>
+      </form>
+
+      <!-- Info message about permissions -->
+      <div *ngIf="!authService.canEditAiModelSettings()" class="alert alert-info mt-3">
+        <i class="bi bi-info-circle me-2"></i>
+        You can view AI model settings, but you need Admin or Scrum Master role to modify them.
       </div>
     </div>
   </div>

@@ -21,31 +21,31 @@
   <!-- Tab navigation for settings sections -->
   <ul class="nav nav-tabs mb-4">
     <li class="nav-item">
-      <a class="nav-link active" data-bs-toggle="tab" href="#userRoles">User Roles</a>
+      <a class="nav-link" [class.active]="activeTab === 'userRoles'" (click)="setActiveTab('userRoles')">User Roles</a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#azureDevOps">Azure DevOps</a>
+      <a class="nav-link" [class.active]="activeTab === 'azureDevOps'" (click)="setActiveTab('azureDevOps')">Azure DevOps</a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#aiModel">AI Model</a>
+      <a class="nav-link" [class.active]="activeTab === 'aiModel'" (click)="setActiveTab('aiModel')">AI Model</a>
     </li>
     <li class="nav-item">
-      <a class="nav-link" data-bs-toggle="tab" href="#teamFilters">Team Filters</a>
+      <a class="nav-link" [class.active]="activeTab === 'teamFilters'" (click)="setActiveTab('teamFilters')">Team Filters</a>
     </li>
   </ul>
 
   <!-- Tab content -->
   <div class="tab-content">
-    <div class="tab-pane fade show active" id="userRoles">
+    <div class="tab-pane fade" [class.show]="activeTab === 'userRoles'" [class.active]="activeTab === 'userRoles'">
       <app-user-roles></app-user-roles>
     </div>
-    <div class="tab-pane fade" id="azureDevOps">
+    <div class="tab-pane fade" [class.show]="activeTab === 'azureDevOps'" [class.active]="activeTab === 'azureDevOps'">
       <app-azure-devops-settings></app-azure-devops-settings>
     </div>
-    <div class="tab-pane fade" id="aiModel">
+    <div class="tab-pane fade" [class.show]="activeTab === 'aiModel'" [class.active]="activeTab === 'aiModel'">
       <app-ai-model-settings></app-ai-model-settings>
     </div>
-    <div class="tab-pane fade" id="teamFilters">
+    <div class="tab-pane fade" [class.show]="activeTab === 'teamFilters'" [class.active]="activeTab === 'teamFilters'">
       <!-- Team Filters & Iteration Settings -->
       <div class="card">
         <div class="card-header">

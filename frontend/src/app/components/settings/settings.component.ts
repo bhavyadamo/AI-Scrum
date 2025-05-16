@@ -35,6 +35,9 @@ export class SettingsComponent implements OnInit {
     aiModel: ''
   };
 
+  // Active tab tracking
+  activeTab = 'userRoles';
+
   // Role options for demo purposes
   roleOptions = [
     { value: UserRole.Admin, label: 'Admin' },
@@ -70,6 +73,11 @@ export class SettingsComponent implements OnInit {
 
     // Load saved team filter settings
     this.loadTeamFilterSettings();
+  }
+
+  // Change active tab
+  setActiveTab(tabId: string): void {
+    this.activeTab = tabId;
   }
 
   // For demo purposes - change current user role
