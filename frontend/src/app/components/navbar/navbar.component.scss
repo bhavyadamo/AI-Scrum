@@ -1,8 +1,37 @@
 /* Navbar component styles */
+/* Main navbar container with box-shadow to separate from content */
+.navbar {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  background-color: #c5cae9 !important; /* Match the card header background */
+}
+
 .navbar-brand {
-  font-weight: 600;
-  color: white !important;
-  font-size: 1.3rem;
+  font-weight: 800; /* Bold */
+  font-size: 24px; /* Equivalent to text-2xl in Tailwind */
+  padding: 0.1rem 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease; /* duration-150 in Tailwind */
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  &:hover {
+    text-decoration: none; /* no-underline on hover */
+  }
+  
+  i {
+    font-size: 1.2rem;
+    color: #3949ab; /* Keep icon color consistent */
+  }
+  
+  /* AI Scrum Master text */
+  span {
+    color: #4338ca; /* text-indigo-700 in Tailwind */
+    letter-spacing: 0.3px;
+    font-weight: 800; /* font-extrabold in Tailwind */
+  }
   
   .brand-highlight {
     color: #5e72e4;
@@ -11,40 +40,97 @@
 
 .navbar-nav {
   .nav-item {
-    margin-right: 0.5rem;
+    margin-right: 1.5rem; /* Spacing between items */
     
     .nav-link {
       padding: 0.5rem 1rem;
-      border-radius: 0.25rem;
-      color: white !important;
-      font-size: 1.1rem;
+      border-radius: 0.5rem; /* Rounded corners like cards */
+      color: #3949ab !important;
+      font-size: 1.15rem;
       font-weight: 500;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem; /* Space between icon and text */
       
       &:hover {
-        background-color: rgba(255, 255, 255, 0.1);
-        color: white !important;
+        background-color: rgba(255, 255, 255, 0.3); /* Lighter background on hover */
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
       }
       
       &.active {
-        background-color: rgba(255, 255, 255, 0.2);
-        color: white !important;
+        background-color: #e8eaf6; /* Indigo-like background for active */
+        color: #3949ab !important;
         font-weight: 600;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       }
       
       i {
-        font-size: 1.15rem;
+        font-size: 1.1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
     }
   }
 }
 
+/* Update the toggler color to match the new navbar style */
+.navbar-toggler {
+  border-color: #3949ab;
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  &:focus {
+    box-shadow: 0 0 0 0.25rem rgba(57, 73, 171, 0.25);
+  }
+  
+  .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='30' height='30' viewBox='0 0 30 30'%3e%3cpath stroke='rgba(57, 73, 171, 1)' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+  }
+}
+
+/* Dark background should be updated */
+.navbar-dark {
+  background-color: #c5cae9 !important;
+}
+
 @media (max-width: 991.98px) {
   .navbar-collapse {
     padding: 1rem;
+    background-color: #c5cae9; /* Match navbar background */
+    border-radius: 0 0 0.5rem 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .navbar-nav .nav-item {
+    margin-right: 0;
+    margin-bottom: 0.5rem;
   }
   
   .navbar-nav .nav-item .nav-link {
-    font-size: 1.15rem;
+    font-size: 1rem; /* Slightly smaller on mobile */
     padding: 0.7rem 1rem;
+    
+    &:hover {
+      transform: translateY(-1px); /* Less movement on mobile */
+    }
+  }
+}
+
+/* For larger screens, add some extra spacing */
+@media (min-width: 992px) {
+  .navbar {
+    padding: 0.5rem 1.5rem;
+  }
+  
+  .navbar-nav {
+    gap: 0.5rem; /* Modern gap property for spacing */
   }
 } 
