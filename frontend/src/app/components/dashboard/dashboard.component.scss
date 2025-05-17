@@ -516,4 +516,92 @@ h2, .sprint-title {
 
 .modal-body tr:hover {
   background-color: #e8eaf6;
+}
+
+// Card styling for main dashboard cards
+.dashboard-main-cards {
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: stretch;
+  gap: 1rem;
+  
+  @media (max-width: 767.98px) {
+    flex-direction: column;
+  }
+  
+  .card-container {
+    display: flex;
+    flex-direction: column;
+    
+    &.sprint-overview {
+      flex: 2;
+      
+      .card-body {
+        position: relative;
+        min-height: 350px;
+        
+        .sprint-title {
+          font-size: 1.5rem;
+          font-weight: 600;
+          margin-bottom: 1rem;
+          color: #3949ab;
+        }
+        
+        .days-remaining {
+          color: #3949ab;
+          font-size: 1.5rem;
+        }
+      }
+    }
+    
+    &.ai-assistant {
+      flex: 1;
+      
+      .card-body {
+        display: flex;
+        flex-direction: column;
+        min-height: 350px;
+        
+        .chat-messages {
+          flex: 1;
+          overflow-y: auto;
+          margin-bottom: 1rem;
+        }
+        
+        .chat-input {
+          margin-top: auto;
+        }
+      }
+    }
+    
+    @media (max-width: 767.98px) {
+      width: 100%;
+    }
+    
+    .card {
+      flex-grow: 1;
+      height: 100%;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      border: none;
+      overflow: hidden;
+      
+      .card-header {
+        background-color: #c5cae9;
+        color: #3949ab;
+        font-weight: 600;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        
+        h4 {
+          margin: 0;
+        }
+      }
+      
+      .card-body {
+        padding: 1rem;
+        background-color: #f8f9fa;
+      }
+    }
+  }
 } 
