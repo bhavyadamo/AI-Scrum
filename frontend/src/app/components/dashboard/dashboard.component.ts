@@ -109,7 +109,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     longTermDevNew: true,
     supportItems: true,
     aiTips: true,
-    taskStatusBoard: true
+    taskStatusBoard: true,
+    sprintProgress: true
   };
   
   error = {
@@ -122,7 +123,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     longTermDevNew: '',
     supportItems: '',
     aiTips: '',
-    taskStatusBoard: ''
+    taskStatusBoard: '',
+    sprintProgress: ''
   };
 
   // Starting with a default Iteration Path that can be changed
@@ -157,6 +159,13 @@ export class DashboardComponent implements OnInit, AfterViewInit {
   loadingStatusTasks: boolean = false;
   taskDetailsModal: any;
 
+  // Work Item Type modal properties
+  selectedType: string = '';
+  selectedTypeColor: string = '';
+  typeItems: any[] = [];
+  loadingTypeItems: boolean = false;
+  workItemTypeModal: any;
+  
   // Method to decode iteration path for display
   decodeIterationPath(path: string): string {
     if (!path) return '';
@@ -184,6 +193,12 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     if (modalElement) {
       this.taskDetailsModal = new bootstrap.Modal(modalElement);
     }
+    
+    // Initialize the work item type modal
+    const typeModalElement = document.getElementById('workItemTypeModal');
+    if (typeModalElement) {
+      this.workItemTypeModal = new bootstrap.Modal(typeModalElement);
+    }
   }
 
   loadDashboardData(): void {
@@ -193,6 +208,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     // Load Azure DevOps data for the initial iteration path
     this.loadingTaskDetails = true;
     this.taskDetailsError = '';
+    this.loading.sprintProgress = true;
     this.loadTaskStatusBoard();
   }
 
@@ -210,6 +226,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     this.error.sprint = '';
     this.loadingTaskDetails = true;
     this.taskDetailsError = '';
+    this.loading.sprintProgress = true;
+    this.error.sprintProgress = '';
     
     console.log(`Loading data for iteration path: ${this.selectedIterationPath}`);
     
@@ -554,6 +572,8 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     this.error.taskStatusBoard = '';
     this.loadingTaskDetails = true;
     this.taskDetailsError = '';
+    this.loading.sprintProgress = true;
+    this.error.sprintProgress = '';
     
     // Define the expected status order to match the image
     const expectedStatuses = [
@@ -584,6 +604,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
         finalize(() => {
           this.loading.taskStatusBoard = false;
           this.loadingTaskDetails = false;
+          this.loading.sprintProgress = false;
         })
       )
       .subscribe({
@@ -647,11 +668,15 @@ export class DashboardComponent implements OnInit, AfterViewInit {
             // Also update tasksByStatus for compatibility with older code
             this.tasksByStatus = [...this.taskStatusBoard];
             
+            // Save the raw workItems for sprint progress calculation
+            this.azureDevOpsWorkItems = workItems;
+            
             console.log('Task counts by type:', this.tasksByType);
             console.log('Task counts by status:', this.taskStatusBoard);
           } else {
             this.error.taskStatusBoard = 'No tasks found for this iteration';
             this.taskDetailsError = 'No tasks found for this iteration';
+            this.error.sprintProgress = 'No tasks found for this iteration';
             
             // Create dummy data as a last resort
             this.createDummyTaskBoard();
@@ -661,6 +686,7 @@ export class DashboardComponent implements OnInit, AfterViewInit {
           console.error('Error loading task board data:', err);
           this.error.taskStatusBoard = 'Failed to load task board data';
           this.taskDetailsError = 'Failed to load task data';
+          this.error.sprintProgress = 'Failed to load sprint progress data';
           
           // Fallback to dummy data
           this.createDummyTaskBoard();
@@ -803,9 +829,9 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     const shorthandAssignMatch = assignTaskMatch ? null : message.match(shorthandAssignRegex);
     
     // Check if this is a task lookup request
-    // Match patterns like: "show task #123", "find task 123", "what is task 123", etc.
-    const lookupTaskRegex = /(?:show|find|what is|get|lookup|look up|display|view)\s+(?:task|item|work item)(?:\s+#)?(\d+)/i;
-    const lookupTaskMatch = message.match(lookupTaskRegex);
+          // Match patterns like: "show task #123", "find task 123", "what is task 123", etc.
+      const lookupTaskRegex = /(?:show|find|what is|get|lookup|look up|display|view)\s+(?:task|item|work item)(?:\s+#)?(\d+)/i;
+      const lookupTaskMatch = message.match(lookupTaskRegex);
     
     // Pattern for "who has the most tasks"
     const mostTasksRegex = /who has (?:the )?most (?:tasks|work items|items|work)/i;
@@ -1785,9 +1811,50 @@ export class DashboardComponent implements OnInit, AfterViewInit {
     });
   }
 
-  // Get total work items for percentage calculation
+  /**
+   * Calculate the percentage of completed items in the current sprint
+   * @returns Percentage of completed items
+   */
+  getCompletionPercentage(): number {
+    const completedItems = this.getCompletedItems();
+    const totalItems = this.getTotalWorkItems();
+    
+    if (totalItems === 0) return 0;
+    return Math.round((completedItems / totalItems) * 100);
+  }
+  
+  /**
+   * Get the number of completed items in the current sprint
+   * @returns Number of completed items
+   */
+  getCompletedItems(): number {
+    if (!this.azureDevOpsWorkItems || this.azureDevOpsWorkItems.length === 0) {
+      return 0;
+    }
+    
+    // These statuses are considered "completed"
+    const completedStatuses = [
+      'Closed',
+      'Dev Complete',
+      'Moved to Production',
+      'Resolved',
+      'Test In Progress',
+      'Verified'
+    ];
+    
+    // Count items with completed statuses
+    return this.azureDevOpsWorkItems.filter(item => {
+      const status = item.status || '';
+      return completedStatuses.some(s => status.toLowerCase() === s.toLowerCase());
+    }).length;
+  }
+
+  /**
+   * Get total work items for percentage calculation
+   * @returns Total number of work items
+   */
   getTotalWorkItems(): number {
-    return this.tasksByType.reduce((total, item) => total + item.count, 0);
+    return this.azureDevOpsWorkItems ? this.azureDevOpsWorkItems.length : 0;
   }
 
   /**
@@ -1843,6 +1910,52 @@ export class DashboardComponent implements OnInit, AfterViewInit {
    */
   getTaskUrl(taskId: number): string {
     return `${environment.azureDevOpsUrl}/${environment.organization}/${environment.project}/_workitems/edit/${taskId}`;
+  }
+
+  /**
+   * Show work items for a specific type in a modal
+   * @param type The work item type to show
+   */
+  showWorkItemsByType(type: string): void {
+    this.selectedType = type;
+    this.loadingTypeItems = true;
+    this.typeItems = [];
+    
+    // Get the color for this type from tasksByType
+    const typeInfo = this.tasksByType.find(t => t.type === type);
+    this.selectedTypeColor = typeInfo ? typeInfo.color : '#0078d4';
+    
+    // Show the modal first, then load the data
+    if (this.workItemTypeModal) {
+      this.workItemTypeModal.show();
+    }
+    
+    // Define the API URL
+    const encodedPath = encodeURIComponent(this.selectedIterationPath).replace(/%5C/g, '%255C');
+    const url = `http://localhost:5000/api/tasks?iterationPath=${encodedPath}`;
+    
+    this.http.get<any[]>(url)
+      .pipe(
+        finalize(() => {
+          this.loadingTypeItems = false;
+        })
+      )
+      .subscribe({
+        next: (workItems) => {
+          if (workItems && workItems.length > 0) {
+            // Filter the work items by the selected type
+            this.typeItems = workItems.filter(item => 
+              (item.type && item.type.toLowerCase() === this.selectedType.toLowerCase())
+            );
+          } else {
+            this.typeItems = [];
+          }
+        },
+        error: (err) => {
+          console.error(`Error loading work items for type ${type}:`, err);
+          this.typeItems = [];
+        }
+      });
   }
 
   /**

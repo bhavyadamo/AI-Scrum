@@ -139,6 +139,47 @@
   </div>
 
   <!-- Task Distribution Cards -->
+    <div class="card mb-4">
+    <div class="card-header">
+      <h4 class="mb-0">Sprint Progress</h4>
+    </div>
+    <div class="card-body">
+      <div *ngIf="loading.sprintProgress" class="text-center py-4">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+      
+      <div *ngIf="error.sprintProgress" class="alert alert-danger">
+        {{ error.sprintProgress }}
+      </div>
+      
+      <div *ngIf="!loading.sprintProgress && !error.sprintProgress">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div>
+            <span class="fw-bold">{{ getCompletionPercentage() }}% Completed</span>
+          </div>
+          <div>
+            <span class="text-muted">{{ getCompletedItems() }} of {{ getTotalWorkItems() }} items</span>
+          </div>
+        </div>
+        <div class="progress" style="height: 20px; border-radius: 10px; box-shadow: inset 0 1px 3px rgba(0,0,0,.1);">
+          <div class="progress-bar bg-success" role="progressbar" 
+               [style.width.%]="getCompletionPercentage()" 
+               aria-valuenow="getCompletionPercentage()" 
+               aria-valuemin="0" 
+               aria-valuemax="100">
+            {{ getCompletionPercentage() }}%
+          </div>
+        </div>
+        <div class="mt-3 small">
+          <span class="badge bg-secondary me-2">Note:</span>
+          <span class="text-muted">Counts items with status: Closed, Dev Complete, Moved to Production, Resolved, Test In Progress, Verified</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card mb-4">
     <div class="card-header">
       <h4 class="mb-0">Task Distribution by Status</h4>
@@ -200,7 +241,9 @@
       <!-- Type Distribution Cards -->
       <div *ngIf="!loadingTaskDetails && tasksByType && tasksByType.length > 0" class="row">
         <div *ngFor="let typeItem of tasksByType" class="col-md-3 mb-3">
-          <div class="card task-type-card h-100" [style.border-left-color]="typeItem.color">
+          <div class="card task-type-card h-100" [style.border-left-color]="typeItem.color"
+               (click)="showWorkItemsByType(typeItem.type)" style="cursor: pointer;" 
+               title="Click to view work items">
             <div class="card-body p-3">
               <div class="d-flex justify-content-between align-items-center mb-2">
                 <h5 class="mb-0 card-title">{{ typeItem.type }}</h5>
@@ -267,6 +310,54 @@
                 <td><a [href]="getTaskUrl(task.id)" target="_blank">#{{ task.id }}</a></td>
                 <td>{{ task.title }}</td>
                 <td>{{ task.assignedTo || 'Unassigned' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div> 
+
+<!-- Work Item Type Modal -->
+<div class="modal fade" id="workItemTypeModal" tabindex="-1" aria-labelledby="workItemTypeModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header" [style.background-color]="selectedTypeColor" [style.color]="'white'">
+        <h5 class="modal-title" id="workItemTypeModalLabel">{{ selectedType }} Items</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div *ngIf="loadingTypeItems" class="text-center py-3">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading items...</span>
+          </div>
+          <p class="mt-2">Fetching {{ selectedType }} items...</p>
+        </div>
+        
+        <div *ngIf="!loadingTypeItems && typeItems.length === 0" class="alert alert-info">
+          No {{ selectedType }} items found in the current iteration.
+        </div>
+        
+        <div *ngIf="!loadingTypeItems && typeItems.length > 0">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Title</th>
+                <th>Assigned To</th>
+                <th>State</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of typeItems">
+                <td><a [href]="getTaskUrl(item.id)" target="_blank">#{{ item.id }}</a></td>
+                <td>{{ item.title }}</td>
+                <td>{{ item.assignedTo || 'Unassigned' }}</td>
+                <td><span class="badge" [style.background-color]="getStatusColor(item.status)">{{ item.status }}</span></td>
               </tr>
             </tbody>
           </table>
