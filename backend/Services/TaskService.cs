@@ -187,6 +187,8 @@ namespace AI_Scrum.Services
                 
                 // Track expertise by task type per developer from completed tasks in recent history
                 var developerExpertiseByType = new Dictionary<string, Dictionary<string, int>>();
+                // Track expertise by keywords from task titles
+                var developerExpertiseByKeywords = new Dictionary<string, Dictionary<string, int>>();
 
                 // Initialize counters
                 foreach (var developer in developerTasks.Keys)
@@ -204,10 +206,11 @@ namespace AI_Scrum.Services
                         ["WeightedTotal"] = 0
                     };
                     
-                    // Initialize expertise tracker for this developer
+                    // Initialize expertise trackers for this developer
                     developerExpertiseByType[developer] = new Dictionary<string, int>();
+                    developerExpertiseByKeywords[developer] = new Dictionary<string, int>();
                     
-                    // Count tasks by status
+                    // Count tasks by status and track expertise
                     foreach (var task in devTasks)
                     {
                         if (task.Status == null) continue;
@@ -221,25 +224,21 @@ namespace AI_Scrum.Services
                         if (devNewStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
                         {
                             developerTaskCounts[developer]["DevNew"]++;
-                            // Full weight for dev-new tasks
                             developerTaskCounts[developer]["WeightedTotal"] += 1.0;
                         }
                         else if (activeStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
                         {
                             developerTaskCounts[developer]["Active"]++;
-                            // Full weight for active tasks
                             developerTaskCounts[developer]["WeightedTotal"] += 1.0;
                         }
                         else if (reviewStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
                         {
                             developerTaskCounts[developer]["Review"]++;
-                            // Medium weight for review tasks
                             developerTaskCounts[developer]["WeightedTotal"] += 0.3;
                         }
                         else if (completeStatuses.Contains(status, StringComparer.OrdinalIgnoreCase))
                         {
                             developerTaskCounts[developer]["Complete"]++;
-                            // Low weight for completed tasks
                             developerTaskCounts[developer]["WeightedTotal"] += 0.1;
                             
                             // Track expertise based on completed tasks by type
@@ -251,6 +250,20 @@ namespace AI_Scrum.Services
                                     developerExpertiseByType[developer][taskType] = 0;
                                 }
                                 developerExpertiseByType[developer][taskType]++;
+                            }
+
+                            // Track expertise based on task title keywords
+                            if (!string.IsNullOrEmpty(task.Title))
+                            {
+                                var keywords = ExtractKeywords(task.Title);
+                                foreach (var keyword in keywords)
+                                {
+                                    if (!developerExpertiseByKeywords[developer].ContainsKey(keyword))
+                                    {
+                                        developerExpertiseByKeywords[developer][keyword] = 0;
+                                    }
+                                    developerExpertiseByKeywords[developer][keyword]++;
+                                }
                             }
                         }
                     }
@@ -299,200 +312,110 @@ namespace AI_Scrum.Services
                 var avgWeightedTaskCount = developerTaskCounts.Any() ? 
                     developerTaskCounts.Values.Average(d => d["WeightedTotal"]) : 0;
                 
-                // Calculate developer expertise scores
-                var developerScores = new Dictionary<string, Dictionary<int, double>>();
+                // Calculate developer scores for each task based on title keywords
+                var developerScores = new Dictionary<string, double>();
                 var developerInfo = new Dictionary<string, string>();
-                
+
                 foreach (var developer in developerTasks.Keys)
                 {
                     var devTasks = developerTasks[developer];
-                    developerScores[developer] = new Dictionary<int, double>();
+                    var activeTasks = devTasks.Count(t => activeStatuses.Contains(t.Status?.Trim() ?? "", StringComparer.OrdinalIgnoreCase));
+                    var avgTaskCount = developerTaskCounts.Values.Average(d => d["WeightedTotal"]);
                     
-                    // For each Dev-New task, calculate a score for this developer
-                    foreach (var newTask in allNewDevTasks)
+                    // Calculate base score from workload
+                    double score = 100.0 - (activeTasks / Math.Max(1, avgTaskCount) * 50.0);
+                    
+                    // Add expertise score based on keywords
+                    foreach (var task in allNewDevTasks)
                     {
-                        // Only consider reassigning tasks from overloaded developers or unassigned tasks
-                        if (!string.IsNullOrEmpty(newTask.AssignedTo) && 
-                            !overloadedDevelopers.Contains(newTask.AssignedTo) && 
-                            newTask.AssignedTo != developer)
+                        if (!string.IsNullOrEmpty(task.Title))
                         {
-                            // Skip tasks that are assigned to non-overloaded developers
-                            continue;
-                        }
-                        
-                        double score = 0;
-                        
-                        // PRIORITY 1: Expertise based on task type (highest priority)
-                        if (!string.IsNullOrEmpty(newTask.Type) && 
-                            developerExpertiseByType.ContainsKey(developer) &&
-                            developerExpertiseByType[developer].ContainsKey(newTask.Type))
-                        {
-                            // Significant boost for developers with expertise in this task type
-                            int expertiseLevel = developerExpertiseByType[developer][newTask.Type];
-                            score += 50 * Math.Min(expertiseLevel, 5); // Cap at 5 for maximum 250 points
-                            
-                            _logger.LogInformation("Developer {Developer} has expertise level {Level} in {TaskType}", 
-                                developer, expertiseLevel, newTask.Type);
-                        }
-                        
-                        // PRIORITY 2: Load Balancing - current workload (high priority)
-                        var currentWeightedLoad = developerTaskCounts[developer]["WeightedTotal"];
-                        
-                        // Penalize developers with more tasks than average
-                        if (currentWeightedLoad > avgWeightedTaskCount)
-                        {
-                            // Progressive penalty for more tasks beyond average
-                            var loadFactor = 1 + ((currentWeightedLoad - avgWeightedTaskCount) / 
-                                               Math.Max(1, avgWeightedTaskCount));
-                            score -= 60 * loadFactor; // Increased penalty for overloaded developers
-                        }
-                        else if (currentWeightedLoad < avgWeightedTaskCount)
-                        {
-                            // Boost for developers with fewer tasks than average
-                            score += 40 * ((avgWeightedTaskCount - currentWeightedLoad) / 
-                                        Math.Max(1, avgWeightedTaskCount));
-                            
-                            // PRIORITY BOOST: Give significant bonus to developers with only 1 task
-                            if (developerTaskCounts[developer]["Total"] <= 1)
+                            var taskKeywords = ExtractKeywords(task.Title);
+                            foreach (var keyword in taskKeywords)
                             {
-                                score += 80; // Significant bonus for developers with just 1 task
-                                _logger.LogInformation("Developer {Developer} has only 1 task, adding priority boost", developer);
+                                if (developerExpertiseByKeywords[developer].ContainsKey(keyword))
+                                {
+                                    score += developerExpertiseByKeywords[developer][keyword] * 10.0;
+                                }
                             }
                         }
-                        
-                        // PRIORITY 3: Task completion ratio - developers who complete tasks get priority
-                        double completionRatio = 0;
-                        
-                        if (developerTaskCounts[developer]["Total"] > 0)
-                        {
-                            completionRatio = developerTaskCounts[developer]["Complete"] / 
-                                               developerTaskCounts[developer]["Total"];
-                            
-                            // Bonus points for completing tasks
-                            score += completionRatio * 30;
-                        }
-                        
-                        // If this task is already assigned to this developer, add a stability bonus
-                        if (newTask.AssignedTo == developer)
-                        {
-                            score += 5;
-                        }
-                        
-                        // Store the score for this developer for this task
-                        developerScores[developer][newTask.Id] = score;
                     }
                     
-                    // Create explanation of assignment logic for this developer
-                    // Get their top expertise areas
-                    string expertise = "no specific expertise";
-                    if (developerExpertiseByType.ContainsKey(developer) && developerExpertiseByType[developer].Any())
-                    {
-                        var topExpertise = developerExpertiseByType[developer]
-                            .OrderByDescending(kv => kv.Value)
-                            .First();
-                        expertise = $"expert in {topExpertise.Key} ({topExpertise.Value} tasks in 3 months)";
-                    }
-                    
-                    string workload;
-                    double weightedLoad = developerTaskCounts[developer]["WeightedTotal"];
-                    bool isPriority = developerTaskCounts[developer]["Total"] <= 1;
-                    
-                    if (weightedLoad < avgWeightedTaskCount * 0.7)
-                        workload = isPriority ? 
-                            $"low load priority" : 
-                            $"low load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)})";
-                    else if (weightedLoad <= avgWeightedTaskCount * 1.3)
-                        workload = isPriority ? 
-                            $"avg load priority" : 
-                            $"avg load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)})";
-                    else
-                        workload = $"high load ({Math.Round(weightedLoad, 1)}/{Math.Round(avgWeightedTaskCount, 1)})";
-                    
-                    developerInfo[developer] = $"{expertise}, {workload}";
+                    developerScores[developer] = score;
+                    developerInfo[developer] = BuildAssignmentLogicExplanation(
+                        devTasks, 
+                        completeStatuses, 
+                        activeStatuses, 
+                        activeTasks, 
+                        avgTaskCount
+                    );
                 }
 
-                // Make task-specific suggestions with load balancing
+                // Build a lookup of completed task keywords for each developer
+                var completeStatusSet = new HashSet<string>(completeStatuses.Select(s => s.ToLower()));
+                var reviewStatusSet = new HashSet<string>(reviewStatuses.Select(s => s.ToLower()));
+                var allExpertStatuses = new HashSet<string>(completeStatusSet.Concat(reviewStatusSet));
+
+                var developerKeywordHistory = new Dictionary<string, List<string>>();
+                foreach (var developer in developerTasks.Keys)
+                {
+                    var completedTasks = developerTasks[developer]
+                        .Where(t => t.Status != null && allExpertStatuses.Contains(t.Status.Trim().ToLower()))
+                        .ToList();
+                    var keywords = new List<string>();
+                    foreach (var task in completedTasks)
+                    {
+                        if (!string.IsNullOrEmpty(task.Title))
+                        {
+                            keywords.AddRange(ExtractKeywords(task.Title));
+                        }
+                    }
+                    developerKeywordHistory[developer] = keywords;
+                }
+
+                // Make task-specific suggestions
                 var suggestions = new Dictionary<string, string>();
-                // Keep track of assignment count per developer for this batch
                 var batchAssignments = new Dictionary<string, int>();
-                
-                // First, sort tasks by priority (if available) or ID
                 var sortedTasks = allNewDevTasks
-                    .OrderBy(t => t.Priority != null ? int.Parse(t.Priority) : 99) // Lower priority number first
+                    .OrderBy(t => t.Priority != null ? int.Parse(t.Priority) : 99)
                     .ThenBy(t => t.Id)
                     .ToList();
-                
+
                 foreach (var newTask in sortedTasks)
                 {
-                    // Skip tasks that aren't from overloaded developers or unassigned
-                    if (!string.IsNullOrEmpty(newTask.AssignedTo) && 
-                        !overloadedDevelopers.Contains(newTask.AssignedTo))
+                    var newTaskKeywords = !string.IsNullOrEmpty(newTask.Title) ? ExtractKeywords(newTask.Title) : new string[0];
+                    var bestExpert = "";
+                    int bestMatchCount = 0;
+                    List<string> bestMatchedKeywords = new List<string>();
+
+                    foreach (var developer in developerKeywordHistory.Keys)
                     {
-                        _logger.LogInformation("Skipping task {TaskId} as current assignee {Assignee} is not overloaded", 
-                            newTask.Id, newTask.AssignedTo);
-                        continue;
-                    }
-                    
-                    // Find developer with highest score for this specific task
-                    KeyValuePair<string, double> bestMatch = new KeyValuePair<string, double>("", -1000);
-                    
-                    foreach (var developer in developerScores.Keys)
-                    {
-                        if (developerScores[developer].ContainsKey(newTask.Id))
+                        var devKeywords = developerKeywordHistory[developer];
+                        var matched = newTaskKeywords.Intersect(devKeywords).ToList();
+                        int matchCount = matched.Count;
+                        if (matchCount > bestMatchCount)
                         {
-                            double score = developerScores[developer][newTask.Id];
-                            
-                            // Adjust score based on how many tasks already assigned in this batch
-                            int batchCount = batchAssignments.GetValueOrDefault(developer, 0);
-                            if (batchCount > 0)
-                            {
-                                // Reduce score by 20% for each task already assigned in this batch
-                                // This helps ensure better load distribution in the current batch
-                                score *= Math.Max(0.4, 1.0 - (batchCount * 0.2));
-                            }
-                            
-                            if (score > bestMatch.Value)
-                            {
-                                bestMatch = new KeyValuePair<string, double>(developer, score);
-                            }
+                            bestExpert = developer;
+                            bestMatchCount = matchCount;
+                            bestMatchedKeywords = matched;
                         }
                     }
-                    
-                    if (!string.IsNullOrEmpty(bestMatch.Key))
+
+                    if (bestMatchCount > 0)
                     {
-                        // Don't reassign to the same person
-                        if (bestMatch.Key == newTask.AssignedTo)
-                        {
-                            _logger.LogInformation("Task {TaskId} best match is current assignee {Assignee}, keeping assignment", 
-                                newTask.Id, newTask.AssignedTo);
-                            continue;
-                        }
-                        
-                        // Increment batch assignment count for this developer
-                        batchAssignments[bestMatch.Key] = batchAssignments.GetValueOrDefault(bestMatch.Key, 0) + 1;
-                        
-                        // Check if this is a reassignment
-                        bool isReassignment = !string.IsNullOrEmpty(newTask.AssignedTo);
-                        string reassignmentInfo = isReassignment ? $" (reassigned from {newTask.AssignedTo})" : "";
-                        
-                        suggestions[newTask.Id.ToString()] = $"{bestMatch.Key} ({developerInfo[bestMatch.Key]}){reassignmentInfo}";
+                        // Assign to expert
+                        suggestions[newTask.Id.ToString()] = $"{bestExpert} (expertise in [{string.Join(", ", bestMatchedKeywords)}], completions: {bestMatchCount})";
+                        batchAssignments[bestExpert] = batchAssignments.GetValueOrDefault(bestExpert, 0) + 1;
                     }
-                    else if (teamMembers.Any() && string.IsNullOrEmpty(newTask.AssignedTo))
+                    else if (teamMembers.Any())
                     {
-                        // Only for unassigned tasks - find the team member with the least tasks
+                        // Fallback: assign to least busy
                         var leastBusyMember = teamMembers
-                            .OrderBy(m => 
-                                developerTaskCounts.ContainsKey(m.DisplayName) ? 
-                                developerTaskCounts[m.DisplayName]["WeightedTotal"] : 0)
-                            .ThenBy(m => 
-                                batchAssignments.GetValueOrDefault(m.DisplayName, 0))
+                            .OrderBy(m => developerTaskCounts.ContainsKey(m.DisplayName) ? developerTaskCounts[m.DisplayName]["WeightedTotal"] : 0)
+                            .ThenBy(m => batchAssignments.GetValueOrDefault(m.DisplayName, 0))
                             .First();
-                        
-                        suggestions[newTask.Id.ToString()] = $"{leastBusyMember.DisplayName} (least assigned)";
-                        
-                        // Increment batch assignment count
-                        batchAssignments[leastBusyMember.DisplayName] = 
-                            batchAssignments.GetValueOrDefault(leastBusyMember.DisplayName, 0) + 1;
+                        suggestions[newTask.Id.ToString()] = $"{leastBusyMember.DisplayName} (balanced workload distribution)";
+                        batchAssignments[leastBusyMember.DisplayName] = batchAssignments.GetValueOrDefault(leastBusyMember.DisplayName, 0) + 1;
                     }
                 }
                 
@@ -767,6 +690,34 @@ namespace AI_Scrum.Services
                 _logger.LogError(ex, "Error getting task counts for team members in iteration {IterationPath}", iterationPath);
                 return new Dictionary<string, int>();
             }
+        }
+
+        // Helper function to extract keywords from text
+        string[] ExtractKeywords(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return new string[0];
+            
+            // Normalize text
+            var normalized = System.Text.RegularExpressions.Regex.Replace(text, @"([a-z])([A-Z])", "$1 $2");
+            normalized = normalized.Replace("_", " ").Replace("-", " ").Replace(",", " ").Replace(".", " ")
+                .Replace(":", " ").Replace(";", " ").ToLowerInvariant();
+            
+            // Split into words and filter
+            var words = normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 3)
+                .ToList();
+            
+            // Common stopwords to filter out
+            var stopwords = new HashSet<string> { 
+                "should", "not", "display", "non", "fields", "with", "from", "this", "that", 
+                "have", "been", "for", "the", "and", "but", "are", "was", "has", "had", 
+                "all", "any", "can", "will", "just", "more", "less", "than", "then", 
+                "into", "out", "about", "over", "under", "such", "only", "own", "same", 
+                "so", "too", "very", "yet", "each", "few", "most", "other", "some", 
+                "their", "there", "which", "who", "whose", "why", "how", "when", "where", "what" 
+            };
+            
+            return words.Where(w => !stopwords.Contains(w)).ToArray();
         }
     }
 } 
