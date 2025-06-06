@@ -381,41 +381,63 @@ namespace AI_Scrum.Services
                     .ThenBy(t => t.Id)
                     .ToList();
 
+                // Calculate max assignments per person for this batch
+                int maxAssignmentsPerPerson = (int)Math.Ceiling((double)sortedTasks.Count / Math.Max(1, teamMembers.Count));
+
                 foreach (var newTask in sortedTasks)
                 {
                     var newTaskKeywords = !string.IsNullOrEmpty(newTask.Title) ? ExtractKeywords(newTask.Title) : new string[0];
                     var bestExpert = "";
                     int bestMatchCount = 0;
                     List<string> bestMatchedKeywords = new List<string>();
+                    var expertCandidates = new List<(string dev, int matchCount, List<string> matchedKeywords)>();
 
                     foreach (var developer in developerKeywordHistory.Keys)
                     {
                         var devKeywords = developerKeywordHistory[developer];
                         var matched = newTaskKeywords.Intersect(devKeywords).ToList();
                         int matchCount = matched.Count;
-                        if (matchCount > bestMatchCount)
+                        if (matchCount > 0)
                         {
-                            bestExpert = developer;
-                            bestMatchCount = matchCount;
-                            bestMatchedKeywords = matched;
+                            expertCandidates.Add((developer, matchCount, matched));
                         }
                     }
 
-                    if (bestMatchCount > 0)
+                    // Sort experts by match count (desc), then by current batch assignments (asc)
+                    var sortedExperts = expertCandidates
+                        .OrderByDescending(e => e.matchCount)
+                        .ThenBy(e => batchAssignments.GetValueOrDefault(e.dev, 0))
+                        .ToList();
+
+                    string assignedDev = null;
+                    string assignmentReason = null;
+
+                    foreach (var expert in sortedExperts)
                     {
-                        // Assign to expert
-                        suggestions[newTask.Id.ToString()] = $"{bestExpert} (expertise in [{string.Join(", ", bestMatchedKeywords)}], completions: {bestMatchCount})";
-                        batchAssignments[bestExpert] = batchAssignments.GetValueOrDefault(bestExpert, 0) + 1;
+                        if (batchAssignments.GetValueOrDefault(expert.dev, 0) < maxAssignmentsPerPerson)
+                        {
+                            assignedDev = expert.dev;
+                            assignmentReason = $"expertise in [{string.Join(", ", expert.matchedKeywords)}], completions: {expert.matchCount}";
+                            batchAssignments[assignedDev] = batchAssignments.GetValueOrDefault(assignedDev, 0) + 1;
+                            break;
+                        }
                     }
-                    else if (teamMembers.Any())
+
+                    if (assignedDev == null && teamMembers.Any())
                     {
-                        // Fallback: assign to least busy
+                        // No expert available or all experts are at max, assign to least busy
                         var leastBusyMember = teamMembers
                             .OrderBy(m => developerTaskCounts.ContainsKey(m.DisplayName) ? developerTaskCounts[m.DisplayName]["WeightedTotal"] : 0)
                             .ThenBy(m => batchAssignments.GetValueOrDefault(m.DisplayName, 0))
                             .First();
-                        suggestions[newTask.Id.ToString()] = $"{leastBusyMember.DisplayName} (balanced workload distribution)";
-                        batchAssignments[leastBusyMember.DisplayName] = batchAssignments.GetValueOrDefault(leastBusyMember.DisplayName, 0) + 1;
+                        assignedDev = leastBusyMember.DisplayName;
+                        assignmentReason = "balanced workload distribution";
+                        batchAssignments[assignedDev] = batchAssignments.GetValueOrDefault(assignedDev, 0) + 1;
+                    }
+
+                    if (assignedDev != null)
+                    {
+                        suggestions[newTask.Id.ToString()] = $"{assignedDev} ({assignmentReason})";
                     }
                 }
                 
